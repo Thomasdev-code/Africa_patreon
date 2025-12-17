@@ -1,0 +1,736 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                       @id @default(cuid())
+  email                String                       @unique
+  password             String
+  role                 String
+  isOnboarded          Boolean                      @default(false)
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
+  referralCode         String                       @unique
+  referredBy           String?
+  isApproved           Boolean                      @default(true)
+  isBanned             Boolean                      @default(false)
+  aiCredits            Int                          @default(0)
+  subscriptionPlan     String                       @default("free")
+  aiUsageHistory       AiUsageHistory[]
+  amlRiskProfile       AmlRiskProfile?
+  chargebacksAsCreator Chargeback[]                 @relation("ChargebackCreator")
+  chargebacksAsUser    Chargeback[]                 @relation("ChargebackUser")
+  comments             Comment[]
+  creatorProfile       CreatorProfile?
+  creatorStats         CreatorStats?
+  creatorWallet        CreatorWallet?
+  earnings             Earnings[]
+  creatorFollows       Follow[]                     @relation("CreatorFollows")
+  fanFollows           Follow[]                     @relation("FanFollows")
+  kycVerification      KycVerification?
+  likes                Like[]
+  receivedMessages     Message[]                    @relation("receivedMessages")
+  sentMessages         Message[]                    @relation("sentMessages")
+  notifications        Notification[]
+  ppvPurchases         PPVPurchase[]
+  paymentsReceived     Payment[]                    @relation("CreatorPayments")
+  paymentsMade         Payment[]                    @relation("UserPayments")
+  paymentEvents        PaymentEvent[]
+  paymentMethodUpdates PaymentMethodUpdateRequest[]
+  payoutRequests       PayoutRequest[]
+  createdPolls         Poll[]
+  posts                Post[]
+  postUnlocks          PostUnlock[]
+  referralsReceived    Referral[]                   @relation("Referred")
+  referralsGiven       Referral[]                   @relation("Referrer")
+  referralCodes        ReferralCode?                @relation("ReferralCodeOwner")
+  referralCredits      ReferralCredit[]
+  referralPayouts      ReferralPayout[]
+  creatorSubscriptions Subscription[]               @relation("CreatorSubscriptions")
+  fanSubscriptions     Subscription[]               @relation("FanSubscriptions")
+  votes                Vote[]
+
+  @@index([referredBy])
+  @@index([subscriptionPlan])
+  @@index([email])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+  @@index([expiresAt])
+}
+
+model CreatorProfile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  username  String   @unique
+  bio       String
+  avatarUrl String?
+  bannerUrl String?
+  tiers     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tags      String[] @default([])
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([username])
+  @@index([bio])
+  @@index([tags])
+}
+
+model Subscription {
+  id               String           @id @default(cuid())
+  fanId            String
+  creatorId        String
+  tierName         String
+  tierPrice        Float
+  status           String
+  paymentProvider  String?
+  paymentReference String?
+  startDate        DateTime         @default(now())
+  endDate          DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  referralId       String?          @unique
+  paymentId        String?          @unique
+  autoRenew        Boolean          @default(true)
+  lastPaymentId    String?
+  nextBillingDate  DateTime?
+  mobilePlatform   String?
+  renewalDate      DateTime?
+  renewalProvider  String?
+  renewalStatus    String?
+  dunningAttempts  DunningAttempt[]
+  creator          User             @relation("CreatorSubscriptions", fields: [creatorId], references: [id], onDelete: Cascade)
+  fan              User             @relation("FanSubscriptions", fields: [fanId], references: [id], onDelete: Cascade)
+  payment          Payment?         @relation(fields: [paymentId], references: [id])
+  referral         Referral?        @relation("SubscriptionReferral", fields: [referralId], references: [id])
+
+  @@index([fanId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([referralId])
+  @@index([paymentId])
+  @@index([nextBillingDate])
+  @@index([autoRenew])
+  @@index([renewalDate])
+}
+
+model Payment {
+  id                 String               @id @default(cuid())
+  userId             String
+  creatorId          String
+  subscriptionId     String?              @unique
+  tierName           String
+  tierPrice          Float
+  provider           String
+  reference          String               @unique
+  amount             Int
+  currency           String               @default("USD")
+  status             String               @default("pending")
+  metadata           Json?
+  webhookReceived    Boolean              @default(false)
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  creatorEarnings    Int                  @default(0)
+  platformFee        Int                  @default(0)
+  type               String               @default("subscription")
+  earnings           Earnings[]
+  creator            User                 @relation("CreatorPayments", fields: [creatorId], references: [id], onDelete: Cascade)
+  user               User                 @relation("UserPayments", fields: [userId], references: [id], onDelete: Cascade)
+  PaymentTransaction PaymentTransaction[]
+  subscription       Subscription?
+
+  @@index([userId])
+  @@index([creatorId])
+  @@index([provider])
+  @@index([status])
+  @@index([reference])
+  @@index([createdAt])
+}
+
+model Post {
+  id           String        @id @default(cuid())
+  creatorId    String
+  title        String
+  content      String
+  mediaUrl     String?
+  tierName     String?
+  isPublished  Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  mediaType    String?
+  isPPV        Boolean       @default(false)
+  ppvCurrency  String?
+  ppvPrice     Int?
+  comments     Comment[]
+  likes        Like[]
+  ppvPurchases PPVPurchase[]
+  creator      User          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  unlocks      PostUnlock[]
+
+  @@index([creatorId])
+  @@index([isPublished])
+  @@index([tierName])
+  @@index([isPPV])
+  @@index([title])
+  @@index([content])
+  @@index([mediaType])
+}
+
+model PPVPurchase {
+  id        String   @id @default(cuid())
+  postId    String
+  fanId     String
+  pricePaid Int
+  provider  String
+  currency  String
+  paymentId String?
+  createdAt DateTime @default(now())
+  fan       User     @relation(fields: [fanId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([fanId, postId])
+  @@index([postId])
+  @@index([fanId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  body      String
+  link      String?
+  title     String
+  type      String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model PostUnlock {
+  id         String   @id @default(cuid())
+  fanId      String
+  postId     String
+  unlockedAt DateTime @default(now())
+  fan        User     @relation(fields: [fanId], references: [id], onDelete: Cascade)
+  post       Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@unique([fanId, postId])
+  @@index([postId])
+  @@index([fanId])
+  @@index([unlockedAt])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  userId    String
+  replyToId String?
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [replyToId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+  @@index([userId])
+  @@index([replyToId])
+  @@index([createdAt])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  postId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String?
+  mediaUrl   String?
+  mediaType  String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  receiver   User     @relation("receivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  sender     User     @relation("sentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([read])
+  @@index([createdAt])
+}
+
+model Referral {
+  id                 String           @id @default(cuid())
+  referrerId         String
+  referredUserId     String?
+  referralCode       String
+  referralLink       String
+  type               String
+  subscriptionId     String?
+  subscriptionValue  Float?
+  creditsEarned      Float            @default(0)
+  status             String
+  clickedAt          DateTime         @default(now())
+  convertedAt        DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  commissionAmount   Float?
+  commissionRate     Float?
+  referralCodeId     String?
+  referralCodeRecord ReferralCode?    @relation(fields: [referralCodeId], references: [id])
+  referred           User?            @relation("Referred", fields: [referredUserId], references: [id])
+  referrer           User             @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  payouts            ReferralPayout[]
+  subscription       Subscription?    @relation("SubscriptionReferral")
+
+  @@index([referrerId])
+  @@index([referredUserId])
+  @@index([referralCode])
+  @@index([status])
+  @@index([clickedAt])
+}
+
+model ReferralCredit {
+  id           String   @id @default(cuid())
+  userId       String
+  referralId   String?
+  amount       Float
+  type         String
+  status       String
+  description  String
+  withdrawalId String?
+  convertedTo  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([referralId])
+  @@index([status])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model PayoutRequest {
+  id             String    @id @default(cuid())
+  creatorId      String
+  amount         Float
+  status         String    @default("pending")
+  method         String
+  accountDetails Json
+  adminNotes     String?
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  creator        User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PaymentTransaction {
+  id                 String   @id @default(cuid())
+  paymentId          String
+  provider           String
+  type               String
+  reference          String   @unique
+  amount             Int
+  currency           String
+  status             String
+  metadata           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  countryCode        String?
+  externalId         String?
+  referralCommission Int?
+  taxAmount          Int?
+  taxRate            Float?
+  creatorEarnings    Int      @default(0)
+  platformFee        Int      @default(0)
+  payment            Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([provider])
+  @@index([status])
+  @@index([reference])
+  @@index([externalId])
+  @@index([countryCode])
+  @@index([createdAt])
+}
+
+model FraudLog {
+  id            String    @id @default(cuid())
+  userId        String?
+  ipAddress     String
+  userAgent     String?
+  requestPath   String
+  requestMethod String
+  fraudType     String
+  severity      String    @default("medium")
+  details       Json?
+  blocked       Boolean   @default(false)
+  resolved      Boolean   @default(false)
+  resolvedAt    DateTime?
+  resolvedBy    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([ipAddress])
+  @@index([fraudType])
+  @@index([severity])
+  @@index([blocked])
+  @@index([createdAt])
+}
+
+model KycVerification {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  idDocumentUrl   String
+  selfieUrl       String
+  addressProofUrl String?
+  status          String    @default("pending")
+  adminNotes      String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AmlRiskProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  riskScore      Int      @default(0)
+  monthlyLimit   Float    @default(500)
+  dailyLimit     Float    @default(100)
+  flags          Json?
+  lastRiskUpdate DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([riskScore])
+}
+
+model DunningAttempt {
+  id             String       @id @default(cuid())
+  subscriptionId String
+  paymentId      String
+  attemptNumber  Int          @default(1)
+  scheduledAt    DateTime
+  attemptedAt    DateTime?
+  status         String       @default("pending")
+  errorMessage   String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([scheduledAt])
+}
+
+model PaymentMethodUpdateRequest {
+  id             String   @id @default(cuid())
+  userId         String
+  subscriptionId String
+  provider       String
+  status         String   @default("pending")
+  redirectUrl    String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+}
+
+model Chargeback {
+  id            String    @id @default(cuid())
+  userId        String
+  creatorId     String
+  paymentId     String
+  provider      String
+  transactionId String
+  amount        Int
+  currency      String
+  status        String    @default("open")
+  reason        String?
+  evidence      Json?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  creator       User      @relation("ChargebackCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  user          User      @relation("ChargebackUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([creatorId])
+  @@index([paymentId])
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model CreatorWallet {
+  id                        String          @id @default(cuid())
+  userId                    String          @unique
+  balance                   Float           @default(0)
+  pendingPayouts            Float           @default(0)
+  availableAfterKycApproval Float?
+  currency                  String          @default("USD")
+  frozen                    Boolean         @default(false)
+  frozenReason              String?
+  createdAt                 DateTime        @default(now())
+  updatedAt                 DateTime        @updatedAt
+  user                      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payoutHistory             PayoutHistory[]
+
+  @@index([userId])
+}
+
+model PayoutHistory {
+  id                String        @id @default(cuid())
+  walletId          String
+  amount            Float
+  currency          String
+  method            String
+  status            String        @default("pending")
+  providerReference String?
+  accountDetails    Json?
+  adminNotes        String?
+  processedAt       DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  wallet            CreatorWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Earnings {
+  id           String   @id @default(cuid())
+  creatorId    String
+  paymentId    String
+  type         String
+  amount       Float
+  balanceAfter Float
+  createdAt    DateTime @default(now())
+  creator      User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  payment      Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([creatorId])
+  @@index([paymentId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+model PaymentEvent {
+  id             String   @id @default(cuid())
+  eventId        String   @unique
+  provider       String
+  type           String
+  userId         String?
+  subscriptionId String?
+  amount         Float
+  currency       String
+  status         String
+  metadata       Json?
+  timestamp      DateTime @default(now())
+  user           User?    @relation(fields: [userId], references: [id])
+
+  @@index([provider])
+  @@index([type])
+  @@index([userId])
+  @@index([subscriptionId])
+  @@index([status])
+  @@index([timestamp])
+}
+
+model ReferralCode {
+  id        String     @id @default(cuid())
+  code      String     @unique
+  userId    String     @unique
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+  referrals Referral[]
+  user      User       @relation("ReferralCodeOwner", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([code])
+  @@index([userId])
+}
+
+model ReferralPayout {
+  id         String    @id @default(cuid())
+  referralId String
+  creatorId  String
+  amount     Float
+  currency   String    @default("USD")
+  status     String    @default("pending")
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  creator    User      @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  referral   Referral  @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  @@index([referralId])
+  @@index([creatorId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model PlatformFee {
+  id         String   @id @default(cuid())
+  percentage Float    @default(5.0)
+  updatedAt  DateTime @updatedAt
+  createdAt  DateTime @default(now())
+}
+
+model Config {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+
+  @@index([key])
+}
+
+model AiUsageHistory {
+  id           String   @id @default(cuid())
+  userId       String
+  toolType     String
+  creditsUsed  Int      @default(1)
+  input        Json?
+  output       Json?
+  success      Boolean  @default(true)
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([toolType])
+  @@index([createdAt])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  fanId     String
+  creatorId String
+  createdAt DateTime @default(now())
+  creator   User     @relation("CreatorFollows", fields: [creatorId], references: [id])
+  fan       User     @relation("FanFollows", fields: [fanId], references: [id])
+
+  @@unique([fanId, creatorId])
+  @@index([creatorId])
+  @@index([fanId])
+  @@index([createdAt])
+}
+
+model Poll {
+  id                  String       @id @default(cuid())
+  creatorId           String
+  question            String
+  tierName            String?
+  hideResultsUntilEnd Boolean      @default(false)
+  endsAt              DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  isPublished         Boolean      @default(true)
+  creator             User         @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  options             PollOption[]
+
+  @@index([creatorId])
+  @@index([createdAt])
+  @@index([endsAt])
+  @@index([isPublished])
+  @@index([question])
+}
+
+model PollOption {
+  id        String   @id @default(cuid())
+  pollId    String
+  createdAt DateTime @default(now())
+  label     String
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes     Vote[]
+
+  @@index([pollId])
+}
+
+model Vote {
+  id        String     @id @default(cuid())
+  userId    String
+  pollId    String
+  optionId  String
+  createdAt DateTime   @default(now())
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pollId])
+  @@unique([userId, optionId])
+  @@index([pollId])
+  @@index([userId])
+  @@index([optionId])
+  @@index([createdAt])
+}
+
+model CreatorStats {
+  id                String   @id @default(cuid())
+  creatorId         String   @unique
+  trendingScore     Float    @default(0)
+  likes             Int      @default(0)
+  comments          Int      @default(0)
+  newFollowers      Int      @default(0)
+  newSubscribers    Int      @default(0)
+  views             Int      @default(0)
+  recentPosts       Int      @default(0)
+  daysSinceLastPost Float    @default(0)
+  lastCalculated    DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  creator           User     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  @@index([trendingScore])
+  @@index([creatorId])
+  @@index([lastCalculated])
+}
