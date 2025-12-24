@@ -7,8 +7,22 @@ const globalForPrisma = global as unknown as { prisma: PrismaClient }
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
-    log: ["error"], // Only log errors, not queries/warnings (reduces connection error spam)
+    log: process.env.NODE_ENV === "production" ? ["error"] : ["error", "warn"],
+    // Connection pool configuration for scalability
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   })
+
+// Configure connection pool limits
+// For production, adjust based on your database provider's recommendations
+// Neon: Use pooled connection string with ?pgbouncer=true&connection_limit=1
+// Supabase: Default is 10 connections
+// Self-hosted: Adjust based on server capacity
+const MAX_CONNECTIONS = parseInt(process.env.DATABASE_MAX_CONNECTIONS || "10", 10)
+const CONNECTION_TIMEOUT = parseInt(process.env.DATABASE_CONNECTION_TIMEOUT || "10000", 10)
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma

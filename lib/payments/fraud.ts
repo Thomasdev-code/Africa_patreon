@@ -150,7 +150,7 @@ export async function checkMobileMoneyFraud(
     where: {
       userId,
       provider: {
-        in: ["FLUTTERWAVE", "PAYSTACK"],
+        in: ["PAYSTACK"],
       },
       metadata: {
         path: ["phoneNumber"],

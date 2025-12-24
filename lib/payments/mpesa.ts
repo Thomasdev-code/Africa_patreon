@@ -1,9 +1,9 @@
 /**
  * Unified M-Pesa Payment Wrapper
- * Uses Flutterwave and Paystack Mobile Money APIs (NO Daraja)
+ * Uses Paystack Mobile Money APIs (NO Daraja)
  */
 
-import { flutterwaveSDK, paystackSDK } from "./payment-providers"
+import { paystackSDK } from "./payment-providers"
 import type { PaymentStatus } from "./types"
 
 export interface MpesaPaymentRequest {
@@ -19,7 +19,7 @@ export interface MpesaPaymentRequest {
 
 export interface MpesaPaymentResult {
   success: boolean
-  provider: "FLUTTERWAVE" | "PAYSTACK"
+  provider: "PAYSTACK"
   reference: string
   status: PaymentStatus
   metadata?: Record<string, any>
@@ -42,16 +42,15 @@ function formatPhoneNumber(phone: string): string {
 }
 
 /**
- * Send M-Pesa STK Push via Flutterwave (primary) or Paystack (fallback)
+ * Send M-Pesa STK Push via Paystack
  */
 export async function sendMpesaStkPush(
   request: MpesaPaymentRequest
 ): Promise<MpesaPaymentResult> {
   const formattedPhone = formatPhoneNumber(request.phoneNumber)
 
-  // Try Flutterwave first
   try {
-    const result = await flutterwaveSDK.createMpesaPayment({
+    const result = await paystackSDK.createMpesaPayment({
       amount: request.amount,
       currency: request.currency,
       phoneNumber: formattedPhone,
@@ -63,41 +62,18 @@ export async function sendMpesaStkPush(
 
     return {
       success: true,
-      provider: "FLUTTERWAVE",
+      provider: "PAYSTACK",
       reference: result.reference,
       status: result.status,
       metadata: result.metadata,
     }
   } catch (error: any) {
-    console.error("Flutterwave M-Pesa failed, trying Paystack:", error.message)
-    
-    // Fallback to Paystack
-    try {
-      const result = await paystackSDK.createMpesaPayment({
-        amount: request.amount,
-        currency: request.currency,
-        phoneNumber: formattedPhone,
-        userId: request.userId,
-        creatorId: request.creatorId,
-        tierName: request.tierName,
-        metadata: request.metadata,
-      })
-
-      return {
-        success: true,
-        provider: "PAYSTACK",
-        reference: result.reference,
-        status: result.status,
-        metadata: result.metadata,
-      }
-    } catch (paystackError: any) {
-      return {
-        success: false,
-        provider: "FLUTTERWAVE",
-        reference: "",
-        status: "failed",
-        error: `Flutterwave: ${error.message}, Paystack: ${paystackError.message}`,
-      }
+    return {
+      success: false,
+      provider: "PAYSTACK",
+      reference: "",
+      status: "failed",
+      error: error.message || "Paystack M-Pesa payment failed",
     }
   }
 }
@@ -106,7 +82,7 @@ export async function sendMpesaStkPush(
  * Verify M-Pesa transaction status
  */
 export async function verifyMpesaTransaction(
-  provider: "FLUTTERWAVE" | "PAYSTACK",
+  provider: "PAYSTACK",
   reference: string
 ): Promise<{
   status: PaymentStatus
@@ -114,11 +90,7 @@ export async function verifyMpesaTransaction(
   currency: string
   metadata?: Record<string, any>
 }> {
-  if (provider === "FLUTTERWAVE") {
-    return await flutterwaveSDK.checkMpesaStatus(reference)
-  } else {
-    return await paystackSDK.checkMpesaStatus(reference)
-  }
+  return await paystackSDK.checkMpesaStatus(reference)
 }
 
 /**

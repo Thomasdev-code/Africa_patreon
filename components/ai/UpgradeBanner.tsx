@@ -126,7 +126,7 @@ export function UpgradeBanner({
           </button>
 
           <p className="mt-4 text-sm text-gray-500">
-            Starting at $9.99/month • Cancel anytime
+            Starting at KSh 1,299/month (≈ $9.99 USD) • Cancel anytime • Secure payment via Paystack
           </p>
         </div>
       </div>

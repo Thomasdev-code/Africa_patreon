@@ -1,23 +1,17 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
+import { paymentRateLimit } from "@/lib/rate-limit"
 import {
   getBestProviderForCountry,
-  getCurrencyForProvider,
-  getCurrencyForCountry,
-  convertPrice,
   normalizeCountry,
-  isMobileMoney,
-  createStripePayment,
   createPaystackPayment,
-  createFlutterwavePayment,
   createMpesaPayment,
   type PaymentProvider,
 } from "@/lib/payments"
-import { convertCurrency } from "@/lib/payments/currency"
+import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
 import { calculateTax } from "@/lib/tax/tax-engine"
 import { toUnifiedPayment } from "@/lib/payments/unified-api"
-import type { SupportedCurrency } from "@/lib/payments/currency"
 import {
   calculatePlatformFee,
   calculateCreatorPayout,
@@ -25,6 +19,25 @@ import {
 
 export async function POST(req: NextRequest) {
   try {
+    // Rate limiting: 10 requests per minute per user/IP
+    const rateLimitResult = await paymentRateLimit(req)
+    if (!rateLimitResult.allowed) {
+      return NextResponse.json(
+        {
+          error: "Rate limit exceeded",
+          message: `Too many payment requests. Please try again after ${rateLimitResult.retryAfter} seconds.`,
+          retryAfter: rateLimitResult.retryAfter,
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": String(rateLimitResult.retryAfter || 60),
+            "X-RateLimit-Remaining": String(rateLimitResult.remaining),
+          },
+        }
+      )
+    }
+
     const session = await auth()
 
     if (!session?.user) {
@@ -39,7 +52,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { postId, provider, country, phone } = body
+    const { postId, country, phone } = body
 
     if (!postId) {
       return NextResponse.json(
@@ -48,15 +61,12 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Get post details
     const post = await executeWithReconnect(() =>
       prisma.post.findUnique({
         where: { id: postId },
         include: {
           creator: {
-            include: {
-              creatorProfile: true,
-            },
+            include: { creatorProfile: true },
           },
         },
       })
@@ -73,7 +83,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Check if user already has active subscription (auto-unlock, no payment needed)
     const subscription = await executeWithReconnect(() =>
       prisma.subscription.findFirst({
         where: {
@@ -93,7 +102,6 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Check if user already purchased
     const existingPurchase = await executeWithReconnect(() =>
       prisma.pPVPurchase.findUnique({
         where: {
@@ -114,74 +122,43 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // Detect country
-    let detectedCountry = country || "US"
+    const detectedCountry = country || "US"
     const normalizedCountry = normalizeCountry(detectedCountry)
 
-    // Select payment provider
-    let selectedProvider: PaymentProvider
-    if (!provider) {
-      selectedProvider = getBestProviderForCountry(normalizedCountry)
-    } else {
-      const validProviders = [
-        "STRIPE",
-        "PAYSTACK",
-        "FLUTTERWAVE",
-        "MPESA_FLW",
-        "MPESA_PAYSTACK",
-      ]
-      const normalizedProvider = provider.toUpperCase().trim()
+    const selectedProvider: PaymentProvider = "PAYSTACK"
+    
+    // CRITICAL: Always use KES for Kenya-based Paystack accounts
+    const finalCurrency: PaystackCurrency = "KES"
 
-      if (!validProviders.includes(normalizedProvider)) {
-        return NextResponse.json(
-          {
-            error: `Invalid payment provider. Must be one of: ${validProviders.join(", ")}`,
-          },
-          { status: 400 }
-        )
-      }
-      selectedProvider = normalizedProvider as PaymentProvider
-    }
-
-    // Determine currency
-    let finalCurrency: SupportedCurrency
-    const providerCurrency = getCurrencyForProvider(selectedProvider)
-    const countryCurrency = getCurrencyForCountry(normalizedCountry)
-
-    if (isMobileMoney(selectedProvider)) {
-      finalCurrency = "KES"
-    } else if (selectedProvider === "PAYSTACK") {
-      finalCurrency = "NGN"
-    } else if (selectedProvider === "FLUTTERWAVE") {
-      const flutterwaveCurrencies: SupportedCurrency[] = ["KES", "NGN", "GHS", "ZAR", "USD"]
-      finalCurrency = flutterwaveCurrencies.includes(countryCurrency) ? countryCurrency : providerCurrency
-    } else {
-      const stripeCurrencies: SupportedCurrency[] = ["USD", "EUR", "GBP", "CAD"]
-      finalCurrency = stripeCurrencies.includes(countryCurrency) ? countryCurrency : providerCurrency
-    }
-
-    // Convert price from post currency to final currency
-    // Assume post.ppvPrice is in cents, and post.ppvCurrency is the base currency
-    const postCurrency = (post.ppvCurrency || "USD") as SupportedCurrency
+    // Convert post price to KES
+    const postCurrency = post.ppvCurrency || "USD"
     const priceInPostCurrency = post.ppvPrice / 100
-    
-    // Convert to USD first (for internal calculation)
-    const priceUSD = postCurrency === "USD" 
-      ? priceInPostCurrency
-      : convertCurrency(priceInPostCurrency, postCurrency, "USD")
-    
-    // Convert from USD to target currency
-    const convertedPrice = await convertPrice(priceUSD, finalCurrency)
+    // Simplified conversion (in production use real rates)
+    // Approximate rate: 1 USD ≈ 130 KES
+    const convertedPrice = postCurrency === "USD"
+      ? priceInPostCurrency * 130
+      : priceInPostCurrency * (postCurrency === "KES" ? 1 : postCurrency === "NGN" ? 130/1500 : postCurrency === "GHS" ? 130/12 : postCurrency === "ZAR" ? 130/18.5 : 130)
     const priceInCents = Math.round(convertedPrice * 100)
 
-    // Calculate tax
     const taxCalculation = calculateTax(convertedPrice, normalizedCountry)
     const totalAmount = taxCalculation.totalAmount
     const totalAmountInCents = Math.round(totalAmount * 100)
-    const platformFee = calculatePlatformFee(totalAmountInCents)
-    const creatorEarnings = calculateCreatorPayout(totalAmountInCents)
+    const platformFee = await calculatePlatformFee(totalAmountInCents)
+    const creatorEarnings = await calculateCreatorPayout(totalAmountInCents)
 
-    // Create payment session
+    // Defensive logging
+    console.info("[PPV_PURCHASE]", {
+      userId: session.user.id,
+      creatorId: post.creatorId,
+      postId,
+      currency: finalCurrency,
+      provider: selectedProvider,
+      amountInMinor: totalAmountInCents,
+      platformFee,
+      creatorEarnings,
+      country: normalizedCountry,
+    })
+
     const metadata = {
       userId: session.user.id,
       creatorId: post.creatorId,
@@ -193,74 +170,31 @@ export async function POST(req: NextRequest) {
       email: session.user.email || undefined,
       platformFee,
       creatorEarnings,
+      paystackCurrency: finalCurrency, // Store resolved currency
     }
 
     let paymentResult: { reference: string; payment_url: string }
 
-    try {
-      if (isMobileMoney(selectedProvider)) {
-        if (!phone) {
-          return NextResponse.json(
-            { error: "Phone number is required for M-Pesa payments" },
-            { status: 400 }
-          )
-        }
-
-        if (selectedProvider === "MPESA_PAYSTACK") {
-          paymentResult = await createMpesaPayment(
-            totalAmount,
-            phone,
-            "MPESA_PAYSTACK",
-            metadata
-          )
-        } else {
-          paymentResult = await createMpesaPayment(
-            totalAmount,
-            phone,
-            "MPESA_FLW",
-            metadata
-          )
-        }
-      } else if (selectedProvider === "STRIPE") {
-        paymentResult = await createStripePayment(
-          totalAmount,
-          session.user.email || "",
-          finalCurrency,
-          metadata
-        )
-      } else if (selectedProvider === "PAYSTACK") {
-        paymentResult = await createPaystackPayment(
-          totalAmount,
-          session.user.email || "",
-          finalCurrency,
-          metadata
-        )
-      } else if (selectedProvider === "FLUTTERWAVE") {
-        paymentResult = await createFlutterwavePayment(
-          totalAmount,
-          session.user.email || "",
-          finalCurrency,
-          metadata
-        )
-      } else {
-        throw new Error(`Unsupported payment provider: ${selectedProvider}`)
-      }
-
-      if (!paymentResult.payment_url) {
-        throw new Error(`${selectedProvider} did not return a payment URL`)
-      }
-    } catch (error: any) {
-      console.error(`PPV payment creation failed for ${selectedProvider}:`, error)
-      return NextResponse.json(
-        {
-          error: `Payment creation failed: ${error.message}`,
-          provider: selectedProvider,
-        },
-        { status: 500 }
+    if (phone && normalizedCountry === "KE") {
+      paymentResult = await createMpesaPayment(
+        totalAmount,
+        phone,
+        "MPESA_PAYSTACK",
+        metadata
+      )
+    } else {
+      paymentResult = await createPaystackPayment(
+        totalAmount,
+        session.user.email || "",
+        finalCurrency,
+        metadata
       )
     }
 
-    // Create payment record
+    if (!paymentResult.payment_url) {
+      throw new Error(`PAYSTACK did not return a payment URL`)
+    }
+
     const unifiedPayment = toUnifiedPayment({
       provider: selectedProvider,
       externalId: paymentResult.reference,
@@ -286,60 +220,43 @@ export async function POST(req: NextRequest) {
         data: {
           userId: session.user.id,
           creatorId: post.creatorId,
-          tierName: "PPV", // Special tier name for PPV
+          tierName: "PPV",
           tierPrice: convertedPrice,
           provider: selectedProvider,
           reference: paymentResult.reference,
           amount: unifiedPayment.amount,
           currency: unifiedPayment.currency,
           status: "pending",
-        type: "ppv",
+          type: "ppv",
           metadata: {
             ...unifiedPayment.metadata,
             type: "ppv",
             postId: postId,
           },
-        platformFee,
-        creatorEarnings,
+          platformFee,
+          creatorEarnings,
         },
       })
     )
 
-    // Create payment transaction
     await executeWithReconnect(() =>
       prisma.paymentTransaction.create({
         data: {
           paymentId: payment.id,
           provider: selectedProvider,
-          type: "payment",
+          type: "ppv",
           reference: paymentResult.reference,
           externalId: paymentResult.reference,
           amount: unifiedPayment.amount,
           currency: unifiedPayment.currency,
           status: "pending",
-          type: "ppv",
           platformFee,
           creatorEarnings,
-          platformFee,
-          creatorEarnings,
-          taxAmount: unifiedPayment.taxAmount,
-          taxRate: unifiedPayment.taxRate,
-          countryCode: unifiedPayment.countryCode,
-          metadata: unifiedPayment.metadata,
-        },
-      })
-    )
-
-    // Create pending PPV purchase (will be confirmed via webhook)
-    await executeWithReconnect(() =>
-      prisma.pPVPurchase.create({
-        data: {
-          postId: postId,
-          fanId: session.user.id,
-          pricePaid: priceInCents,
-          provider: selectedProvider,
-          currency: finalCurrency,
-          paymentId: payment.id,
+          metadata: {
+            ...unifiedPayment.metadata,
+            type: "ppv",
+            postId: postId,
+          },
         },
       })
     )
@@ -347,18 +264,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       provider: selectedProvider,
-      currency: finalCurrency,
-      price: convertedPrice,
-      totalAmount: totalAmount,
       payment_url: paymentResult.payment_url,
       reference: paymentResult.reference,
+      platformFee,
+      creatorEarnings,
     })
   } catch (error: any) {
     console.error("PPV purchase error:", error)
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { error: error.message || "Payment creation failed" },
       { status: 500 }
     )
   }
 }
+
 

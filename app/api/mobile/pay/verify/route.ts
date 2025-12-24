@@ -14,7 +14,7 @@ const corsHeaders = {
 
 const verifySchema = z.object({
   reference: z.string(),
-  provider: z.enum(["STRIPE", "PAYSTACK", "FLUTTERWAVE", "MPESA"]),
+  provider: z.enum(["PAYSTACK", "MPESA"]).optional().default("PAYSTACK"),
 })
 
 export async function OPTIONS() {
@@ -58,17 +58,14 @@ export async function POST(req: NextRequest) {
     // Verify payment based on provider
     let verification
 
-    if (validated.provider === "MPESA") {
-      // M-Pesa verification (needs provider from payment metadata)
-      const metadata = payment.metadata as any
-      const mpesaProvider = metadata?.provider || "FLUTTERWAVE"
-      
+    if (validated.provider === "MPESA" || payment.provider === "MPESA_PAYSTACK") {
+      // M-Pesa verification via Paystack
       verification = await verifyMpesaTransaction(
-        mpesaProvider as "FLUTTERWAVE" | "PAYSTACK",
+        "PAYSTACK",
         validated.reference
       )
     } else {
-      const provider = getPaymentProvider(validated.provider)
+      const provider = getPaymentProvider(validated.provider || "PAYSTACK")
       verification = await provider.verifyPayment(validated.reference)
     }
 
@@ -87,7 +84,7 @@ export async function POST(req: NextRequest) {
         amount: verification.amount,
         currency: verification.currency,
         metadata: verification.metadata,
-        provider: validated.provider,
+        provider: validated.provider || payment.provider || "PAYSTACK",
       })
     }
 

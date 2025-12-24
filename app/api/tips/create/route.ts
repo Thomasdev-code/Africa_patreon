@@ -2,16 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
 import {
-  createStripePayment,
-  createPaystackPayment,
-  createFlutterwavePayment,
-  createMpesaPayment,
   getBestProviderForCountry,
-  getCurrencyForProvider,
   normalizeCountry,
-  isMobileMoney,
+  createPaystackPayment,
+  createMpesaPayment,
   type PaymentProvider,
 } from "@/lib/payments"
+import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
 import { calculatePlatformFee, calculateCreatorPayout } from "@/app/config/platform"
 
 export async function POST(req: NextRequest) {
@@ -22,7 +19,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { creatorId, amount, currency = "USD", country = "US", provider, phone, note } = body
+    const { creatorId, amount, currency, country = "NG", phone, note } = body
 
     if (!creatorId || !amount || amount <= 0) {
       return NextResponse.json(
@@ -31,23 +28,33 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const normalizedCountry = normalizeCountry(country || "US")
-    const selectedProvider: PaymentProvider = provider
-      ? (provider.toUpperCase().trim() as PaymentProvider)
-      : getBestProviderForCountry(normalizedCountry)
+    const normalizedCountry = normalizeCountry(country || "NG")
+    const selectedProvider: PaymentProvider = "PAYSTACK"
 
-    // For mobile money, ensure phone is provided
-    if (isMobileMoney(selectedProvider) && !phone) {
-      return NextResponse.json(
-        { error: "Phone number is required for M-Pesa payments" },
-        { status: 400 }
-      )
-    }
+    // CRITICAL: Always use KES for Kenya-based Paystack accounts
+    const finalCurrency: PaystackCurrency = "KES"
+    
+    // Convert amount to KES if needed
+    // Approximate rate: 1 USD ≈ 130 KES
+    const convertedAmount = currency === "KES"
+      ? amount
+      : amount * (currency === "USD" ? 130 : currency === "NGN" ? 130/1500 : currency === "GHS" ? 130/12 : currency === "ZAR" ? 130/18.5 : 130)
+    
+    const amountMinor = Math.round(convertedAmount * 100)
+    const platformFee = await calculatePlatformFee(amountMinor)
+    const creatorEarnings = await calculateCreatorPayout(amountMinor)
 
-    const finalCurrency = getCurrencyForProvider(selectedProvider) || currency
-    const amountMinor = Math.round(amount * 100)
-    const platformFee = calculatePlatformFee(amountMinor)
-    const creatorEarnings = calculateCreatorPayout(amountMinor)
+    // Defensive logging
+    console.info("[TIP_CREATE]", {
+      userId: session.user.id,
+      creatorId,
+      currency: finalCurrency,
+      provider: selectedProvider,
+      amountInMinor,
+      platformFee,
+      creatorEarnings,
+      country: normalizedCountry,
+    })
 
     const metadata = {
       userId: session.user.id,
@@ -58,28 +65,16 @@ export async function POST(req: NextRequest) {
       platformFee,
       creatorEarnings,
       phone: phone || undefined,
+      email: session.user.email || undefined,
+      paystackCurrency: finalCurrency, // Store resolved currency
     }
 
     let paymentResult: { reference: string; payment_url: string }
-    if (isMobileMoney(selectedProvider)) {
-      paymentResult = await createMpesaPayment(amount, phone, selectedProvider, metadata)
-    } else if (selectedProvider === "PAYSTACK") {
-      paymentResult = await createPaystackPayment(
-        amount,
-        session.user.email || "",
-        finalCurrency,
-        metadata
-      )
-    } else if (selectedProvider === "FLUTTERWAVE") {
-      paymentResult = await createFlutterwavePayment(
-        amount,
-        session.user.email || "",
-        finalCurrency,
-        metadata
-      )
+    if (phone && normalizedCountry === "KE") {
+      paymentResult = await createMpesaPayment(convertedAmount, phone, "MPESA_PAYSTACK", metadata)
     } else {
-      paymentResult = await createStripePayment(
-        amount,
+      paymentResult = await createPaystackPayment(
+        convertedAmount,
         session.user.email || "",
         finalCurrency,
         metadata
@@ -87,7 +82,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!paymentResult.payment_url) {
-      throw new Error(`${selectedProvider} did not return a payment URL`)
+      throw new Error(`PAYSTACK did not return a payment URL`)
     }
 
     const payment = await executeWithReconnect(() =>
@@ -96,7 +91,7 @@ export async function POST(req: NextRequest) {
           userId: session.user.id,
           creatorId,
           tierName: "TIP",
-          tierPrice: amount,
+          tierPrice: convertedAmount,
           provider: selectedProvider,
           reference: paymentResult.reference,
           amount: amountMinor,
@@ -144,4 +139,5 @@ export async function POST(req: NextRequest) {
     )
   }
 }
+
 

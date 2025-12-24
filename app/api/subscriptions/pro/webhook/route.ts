@@ -9,18 +9,14 @@ const PRO_MONTHLY_CREDITS = 50
  */
 export async function POST(req: NextRequest) {
   try {
-    const provider = req.headers.get("x-provider") || "STRIPE"
-    const signature = req.headers.get("stripe-signature") ||
-      req.headers.get("x-paystack-signature") ||
-      req.headers.get("verif-hash") ||
-      undefined
+    const signature = req.headers.get("x-paystack-signature")
+    if (!signature) {
+      return NextResponse.json({ error: "Missing signature" }, { status: 400 })
+    }
 
-    const body = await req.text()
-    const webhookResult = await processWebhook(
-      provider as "STRIPE" | "PAYSTACK" | "FLUTTERWAVE",
-      provider === "STRIPE" ? body : JSON.parse(body),
-      signature
-    )
+    const body = await req.json()
+    const { paystackSDK } = await import("@/lib/payments/payment-providers")
+    const webhookResult = await paystackSDK.handleWebhook(body, signature)
 
     // Find payment by reference
     const payment = await prisma.payment.findUnique({

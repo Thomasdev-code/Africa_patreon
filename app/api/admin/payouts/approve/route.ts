@@ -6,7 +6,7 @@ import { z } from "zod"
 
 const approveSchema = z.object({
   payoutId: z.string(),
-  method: z.enum(["mpesa", "bank", "stripe_connect"]).optional(),
+  method: z.enum(["mpesa", "bank"]).optional(),
   accountDetails: z.object({
     phoneNumber: z.string().optional(),
     accountNumber: z.string().optional(),

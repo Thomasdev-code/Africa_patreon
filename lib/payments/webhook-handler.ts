@@ -13,6 +13,7 @@ import {
 import {
   calculatePlatformFee,
   calculateCreatorPayout,
+  getPlatformFeePercent,
   PLATFORM_FEE_PERCENT,
 } from "@/app/config/platform"
 import type { PaymentStatus } from "./types"
@@ -24,7 +25,7 @@ export interface PaymentEvent {
   amount: number
   currency: string
   metadata?: Record<string, any>
-  provider: "STRIPE" | "PAYSTACK" | "FLUTTERWAVE"
+  provider: "PAYSTACK"
 }
 
 /**
@@ -52,71 +53,108 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
       return
     }
 
-    // Update payment status
-    await prisma.payment.update({
-      where: { id: payment.id },
-      data: {
+    // Idempotency: Check if payment transaction already exists with this status
+    const existingTransaction = await prisma.paymentTransaction.findFirst({
+      where: {
+        paymentId: payment.id,
+        reference: event.reference,
         status: event.status,
-        webhookReceived: true,
-        metadata: {
-          ...(payment.metadata as any),
-          webhookEvent: event.event,
-          ...event.metadata,
-        },
       },
     })
 
-    // Create payment transaction log with tax and referral info
-    const taxAmount = event.metadata?.taxAmount
-      ? Math.round(event.metadata.taxAmount * 100)
+    if (existingTransaction && event.status === "success") {
+      console.log(`Payment ${event.reference} already processed successfully, skipping`)
+      return
+    }
+
+    // CRITICAL: Wrap all database operations in a transaction for atomicity
+    // This ensures data consistency even if something fails mid-process
+    await prisma.$transaction(async (tx) => {
+      // Update payment status
+      await tx.payment.update({
+        where: { id: payment.id },
+        data: {
+          status: event.status,
+          webhookReceived: true,
+          metadata: {
+            ...(payment.metadata as any),
+            webhookEvent: event.event,
+            ...event.metadata,
+          },
+        },
+      })
+
+    // Server-side fee recomputation (NEVER trust webhook metadata)
+    // Use stored payment amount as source of truth
+    const storedAmount = payment.amount
+    
+    // Extract tax info from stored metadata (if available)
+    const storedMetadata = payment.metadata as any || {}
+    const taxAmount = storedMetadata.taxAmount
+      ? Math.round(storedMetadata.taxAmount * 100)
       : null
-    const taxRate = event.metadata?.taxRate || null
-    const referralCommission = event.metadata?.referralCommission
-      ? Math.round(event.metadata.referralCommission * 100)
+    const taxRate = storedMetadata.taxRate || null
+    const referralCommission = storedMetadata.referralCommission
+      ? Math.round(storedMetadata.referralCommission * 100)
       : null
 
-    // Calculate platform fee using smallest unit to avoid rounding
+    // Recompute platform fee and creator earnings server-side
     // Special case: AI/Pro upgrades go 100% to platform
     const isAiUpgrade =
-      event.metadata?.type === "ai_upgrade" ||
-      event.metadata?.subscriptionType === "pro"
+      storedMetadata.type === "ai_upgrade" ||
+      storedMetadata.subscriptionType === "pro"
 
+    // Get current platform fee percentage from database
+    const currentFeePercent = await getPlatformFeePercent()
+
+    // Recompute fees from stored amount (server-side source of truth)
     const platformFee = isAiUpgrade
-      ? event.amount
-      : calculatePlatformFee(event.amount)
-    const creatorNet = isAiUpgrade ? 0 : calculateCreatorPayout(event.amount)
+      ? storedAmount
+      : await calculatePlatformFee(storedAmount)
+    const creatorNet = isAiUpgrade ? 0 : await calculateCreatorPayout(storedAmount)
     const transactionMetadata = {
       ...event.metadata,
       platformFee,
-      platformFeePercentage: PLATFORM_FEE_PERCENT,
+      platformFeePercentage: currentFeePercent,
       grossAmount: event.amount,
       creatorNet,
     }
 
-    await prisma.paymentTransaction.create({
-      data: {
+      // Create or update payment transaction (idempotent)
+      await tx.paymentTransaction.upsert({
+      where: {
+        reference: event.reference,
+      },
+      create: {
         paymentId: payment.id,
         provider: event.provider,
-        type: event.metadata?.type || "payment",
+        type: storedMetadata.type || "payment",
         reference: event.reference,
-        externalId: event.metadata?.externalId || event.reference,
-        amount: event.amount,
+        externalId: storedMetadata.externalId || event.reference,
+        amount: storedAmount, // Use stored amount
         currency: event.currency,
         status: event.status,
         taxAmount,
         taxRate,
-        countryCode: event.metadata?.countryCode || null,
+        countryCode: storedMetadata.countryCode || null,
         referralCommission,
+        platformFee,
+        creatorEarnings: creatorNet,
+        metadata: transactionMetadata,
+      },
+      update: {
+        status: event.status,
         platformFee,
         creatorEarnings: creatorNet,
         metadata: transactionMetadata,
       },
     })
 
-    // Handle successful payment - update wallet and earnings for all successful payments
-    if (event.status === "success") {
-      // Update creator wallet with net earnings
-      const creatorWallet = await prisma.creatorWallet.upsert({
+      // Handle successful payment - update wallet and earnings for all successful payments
+      // Skip wallet updates for Pro/AI upgrades (100% platform fee)
+      if (event.status === "success" && !isAiUpgrade) {
+        // Update creator wallet with net earnings
+        const creatorWallet = await tx.creatorWallet.upsert({
         where: { userId: payment.creatorId },
         create: {
           userId: payment.creatorId,
@@ -139,28 +177,49 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
           balanceAfter: creatorWallet.balance,
         },
       })
+    }
 
-      // Update payment metadata with fee information for audit
-      await prisma.payment.update({
+      // Update payment with recomputed fee information (server-side source of truth)
+      if (event.status === "success") {
+        await tx.payment.update({
         where: { id: payment.id },
         data: {
           platformFee,
           creatorEarnings: creatorNet,
           metadata: {
-            ...(payment.metadata as any),
+            ...storedMetadata,
             platformFee,
-            platformFeePercentage: PLATFORM_FEE_PERCENT,
-            grossAmount: event.amount,
+            platformFeePercentage: currentFeePercent,
+            grossAmount: storedAmount, // Use stored amount
             creatorNet,
+            feesRecomputedAt: new Date().toISOString(),
           },
         },
       })
     }
 
-    // Handle PPV purchase logic
-    if (event.status === "success" && event.metadata?.type === "ppv" && event.metadata?.postId) {
-      // Confirm PPV purchase (it was created as pending in purchase route)
-      const ppvPurchase = await prisma.pPVPurchase.findFirst({
+      // Handle Pro/AI upgrade logic
+      if (event.status === "success" && (storedMetadata.type === "ai_upgrade" || storedMetadata.subscriptionType === "pro")) {
+        const PRO_MONTHLY_CREDITS = 50
+        
+        // Activate Pro subscription
+        await tx.user.update({
+        where: { id: payment.userId },
+        data: {
+          subscriptionPlan: "pro",
+          aiCredits: {
+            increment: PRO_MONTHLY_CREDITS, // Grant monthly credits
+          },
+        },
+      })
+
+      console.log(`Pro subscription activated for user: ${payment.userId}, granted ${PRO_MONTHLY_CREDITS} AI credits`)
+    }
+
+      // Handle PPV purchase logic
+      if (event.status === "success" && event.metadata?.type === "ppv" && event.metadata?.postId) {
+        // Confirm PPV purchase (it was created as pending in purchase route)
+        const ppvPurchase = await tx.pPVPurchase.findFirst({
         where: {
           postId: event.metadata.postId,
           fanId: payment.userId,
@@ -172,8 +231,8 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
         // Purchase already exists, just log success
         console.log(`PPV purchase confirmed: ${ppvPurchase.id}`)
       } else {
-        // Create PPV purchase if it doesn't exist (shouldn't happen, but safety check)
-        await prisma.pPVPurchase.create({
+          // Create PPV purchase if it doesn't exist (shouldn't happen, but safety check)
+          await tx.pPVPurchase.create({
           data: {
             postId: event.metadata.postId,
             fanId: payment.userId,
@@ -187,15 +246,15 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
       }
     }
 
-    // Handle subscription-specific logic
-    if (event.status === "success" && payment.subscription) {
-      // Activate subscription if not already active
-      if (payment.subscription.status !== "active") {
-        const subscriptionEndDate = new Date(
-          Date.now() + 30 * 24 * 60 * 60 * 1000
-        ) // 30 days
+      // Handle subscription-specific logic
+      if (event.status === "success" && payment.subscription) {
+        // Activate subscription if not already active
+        if (payment.subscription.status !== "active") {
+          const subscriptionEndDate = new Date(
+            Date.now() + 30 * 24 * 60 * 60 * 1000
+          ) // 30 days
 
-        await prisma.subscription.update({
+          await tx.subscription.update({
           where: { id: payment.subscription.id },
           data: {
             status: "active",
@@ -206,34 +265,27 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
           },
         })
 
-        // Notify creator of new subscription
-        await notifyNewSubscription(
-          payment.creatorId,
-          payment.user.email || "Unknown",
-          payment.tierName
-        )
+          // Handle referral credits if applicable
+          if (payment.subscription.referralId && payment.subscription.referral) {
+            const referral = payment.subscription.referral
 
-        // Handle referral credits if applicable
-        if (payment.subscription.referralId && payment.subscription.referral) {
-          const referral = payment.subscription.referral
+            if (referral.referrerId) {
+              const commissionRate = getReferralCommissionRate(payment.tierName)
+              const credits = calculateReferralCredits(
+                "subscription",
+                payment.tierPrice,
+                payment.tierName
+              )
 
-          if (referral.referrerId) {
-            const commissionRate = getReferralCommissionRate(payment.tierName)
-            const credits = calculateReferralCredits(
-              "subscription",
-              payment.tierPrice,
-              payment.tierName
-            )
+              await awardReferralCredits(
+                referral.referrerId,
+                payment.subscription.referralId,
+                credits,
+                "subscription",
+                `Referral subscription: ${payment.tierName} tier ($${payment.tierPrice}/month)`
+              )
 
-            await awardReferralCredits(
-              referral.referrerId,
-              payment.subscription.referralId,
-              credits,
-              "subscription",
-              `Referral subscription: ${payment.tierName} tier ($${payment.tierPrice}/month)`
-            )
-
-            await prisma.referral.update({
+              await tx.referral.update({
               where: { id: payment.subscription.referralId },
               data: {
                 creditsEarned: referral.creditsEarned + credits,
@@ -246,13 +298,29 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
           }
         }
       }
-    } else if (event.status === "failed" && payment.subscription) {
-      // Cancel subscription on payment failure
-      await prisma.subscription.update({
+        }
+      } else if (event.status === "failed" && payment.subscription) {
+        // Cancel subscription on payment failure
+        await tx.subscription.update({
         where: { id: payment.subscription.id },
         data: {
           status: "cancelled",
         },
+      })
+      }
+    }, {
+      timeout: 30000, // 30 second timeout for transaction
+      isolationLevel: 'ReadCommitted', // Prevent dirty reads
+    })
+
+    // Notify creator of new subscription (outside transaction - best effort)
+    if (event.status === "success" && payment.subscription && payment.subscription.status !== "active") {
+      notifyNewSubscription(
+        payment.creatorId,
+        payment.user.email || "Unknown",
+        payment.tierName
+      ).catch((err) => {
+        console.error("Failed to notify creator of new subscription:", err)
       })
     }
 

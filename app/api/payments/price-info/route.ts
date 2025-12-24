@@ -1,60 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import {
   getBestProviderForCountry,
-  getCurrencyForProvider,
-  getCurrencyForCountry,
-  convertPrice,
   normalizeCountry,
-  isMobileMoney,
   type PaymentProvider,
 } from "@/lib/payments"
-import type { SupportedCurrency } from "@/lib/payments/currency"
+import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const tierId = searchParams.get("tierId")
-    const country = searchParams.get("country") || "US"
+    const country = searchParams.get("country") || "NG"
     const providerParam = searchParams.get("provider")
 
-    // Normalize country
     const normalizedCountry = normalizeCountry(country)
-    
-    // Get provider - use provided one or auto-select
-    let provider: PaymentProvider
-    if (providerParam) {
-      provider = providerParam.toUpperCase() as PaymentProvider
-    } else {
-      provider = getBestProviderForCountry(normalizedCountry)
-    }
-    
-    // Determine currency
-    let finalCurrency: SupportedCurrency
-    const providerCurrency = getCurrencyForProvider(provider)
-    const countryCurrency = getCurrencyForCountry(normalizedCountry)
-    
-    // For M-Pesa, always use KES
-    if (isMobileMoney(provider)) {
-      finalCurrency = "KES"
-    } else if (provider === "PAYSTACK") {
-      // Paystack only supports NGN
-      finalCurrency = "NGN"
-    } else if (provider === "FLUTTERWAVE") {
-      // Flutterwave supports multiple currencies
-      const flutterwaveCurrencies: SupportedCurrency[] = ["KES", "NGN", "GHS", "ZAR", "USD"]
-      finalCurrency = flutterwaveCurrencies.includes(countryCurrency) ? countryCurrency : providerCurrency
-    } else {
-      // Stripe supports multiple currencies
-      const stripeCurrencies: SupportedCurrency[] = ["USD", "EUR", "GBP", "CAD"]
-      finalCurrency = stripeCurrencies.includes(countryCurrency) ? countryCurrency : providerCurrency
-    }
+    const provider: PaymentProvider = "PAYSTACK"
 
-    // Find tier in database (we need to search through creator profiles)
-    // For now, we'll accept a priceUSD parameter or fetch from a known tier
-    // This is a simplified version - in production, you'd want to cache tier prices
+    // CRITICAL: Always use KES for Kenya-based Paystack accounts
+    // Set PAYSTACK_ENABLED_CURRENCIES env var if you have other currencies enabled
+    const finalCurrency: PaystackCurrency = "KES"
+
     const priceUSDParam = searchParams.get("priceUSD")
-    
     if (!priceUSDParam) {
       return NextResponse.json(
         { error: "Price USD is required" },
@@ -63,7 +28,6 @@ export async function GET(req: NextRequest) {
     }
 
     const priceUSD = parseFloat(priceUSDParam)
-    
     if (isNaN(priceUSD)) {
       return NextResponse.json(
         { error: "Invalid price USD" },
@@ -71,14 +35,15 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Convert price
-    const convertedPrice = await convertPrice(priceUSD, finalCurrency)
+    // Convert USD to KES (simplified - in production use real rates)
+    // Approximate rate: 1 USD ≈ 130 KES
+    const convertedPrice = priceUSD * 130
 
     return NextResponse.json({
-      provider: provider,
+      provider,
       currency: finalCurrency,
       price: convertedPrice,
-      priceUSD: priceUSD,
+      priceUSD,
     })
   } catch (error: any) {
     console.error("Price info error:", error)
@@ -88,4 +53,5 @@ export async function GET(req: NextRequest) {
     )
   }
 }
+
 

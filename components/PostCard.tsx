@@ -519,7 +519,7 @@ export default function PostCard({
           tierId="ppv"
           tierName="PPV Post"
           tierPrice={post.ppvPrice / 100}
-          recommendedProvider="stripe"
+          recommendedProvider="paystack"
           country={userCountry}
           onSelect={async (provider) => {
             setIsUnlockingPPV(true)
@@ -530,9 +530,7 @@ export default function PostCard({
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                   postId: post.id,
-                  provider: provider === "mpesa_flutterwave" ? "MPESA_FLW" : 
-                           provider === "mpesa_paystack" ? "MPESA_PAYSTACK" :
-                           provider.toUpperCase(),
+                  provider: provider === "mpesa_paystack" ? "MPESA_PAYSTACK" : "PAYSTACK",
                   country: userCountry,
                 }),
               })

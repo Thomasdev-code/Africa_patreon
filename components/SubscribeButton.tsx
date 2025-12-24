@@ -68,19 +68,15 @@ export default function SubscribeButton({
 
   // Determine recommended provider based on country
   const getRecommendedProvider = (): PaymentProviderOption => {
-    if (!country) return "stripe"
+    if (!country) return "paystack"
     const countryCode = country.toUpperCase()
     
-    // Kenya → Flutterwave (M-Pesa support)
-    if (countryCode === "KE") return "flutterwave"
-    // Nigeria → Paystack
-    if (countryCode === "NG") return "paystack"
-    // Ghana → Paystack
-    if (countryCode === "GH") return "paystack"
-    // Tanzania → Flutterwave (M-Pesa support)
-    if (countryCode === "TZ") return "flutterwave"
-    // Default → Stripe
-    return "stripe"
+    // Kenya → M-Pesa via Paystack
+    if (countryCode === "KE") return "mpesa_paystack"
+    // Nigeria, Ghana → Paystack
+    if (["NG", "GH"].includes(countryCode)) return "paystack"
+    // Default → Paystack
+    return "paystack"
   }
 
   const handleSubscribe = async (provider: PaymentProviderOption) => {
@@ -101,12 +97,10 @@ export default function SubscribeButton({
     try {
       // Convert provider option to API format
       let apiProvider: string
-      if (provider === "mpesa_flutterwave") {
-        apiProvider = "MPESA_FLW"
-      } else if (provider === "mpesa_paystack") {
+      if (provider === "mpesa_paystack") {
         apiProvider = "MPESA_PAYSTACK"
       } else {
-        apiProvider = provider.toUpperCase()
+        apiProvider = "PAYSTACK"
       }
 
       // Use new unified payment API with required provider

@@ -3,6 +3,84 @@
  * Handles currency conversion and formatting
  */
 
+/**
+ * Paystack-supported currencies (single source of truth)
+ * Paystack officially supports: NGN, GHS, ZAR, USD, KES
+ */
+export const PAYSTACK_SUPPORTED_CURRENCIES = ["NGN", "GHS", "ZAR", "USD", "KES"] as const
+
+export type PaystackCurrency = typeof PAYSTACK_SUPPORTED_CURRENCIES[number]
+
+/**
+ * Resolve currency to Paystack-compatible currency
+ * Never trust frontend currency - always resolve server-side
+ * 
+ * NOTE: By default, resolves to KES for Kenya-based Paystack accounts.
+ * If your account has other currencies enabled, you can configure 
+ * PAYSTACK_ENABLED_CURRENCIES env var (comma-separated).
+ * 
+ * IMPORTANT: If you're getting "Currency not supported" errors, ensure
+ * PAYSTACK_ENABLED_CURRENCIES is set correctly or leave it unset to use KES.
+ */
+export function resolvePaystackCurrency(input?: string): PaystackCurrency {
+  // Check if merchant has specific currencies enabled via env var
+  const enabledCurrenciesEnv = process.env.PAYSTACK_ENABLED_CURRENCIES
+  let enabledCurrencies: PaystackCurrency[] = ["KES"] // Default to KES for Kenya-based accounts
+  
+  if (enabledCurrenciesEnv) {
+    const parsed = enabledCurrenciesEnv
+      .split(",")
+      .map(c => c.trim().toUpperCase())
+      .filter(c => PAYSTACK_SUPPORTED_CURRENCIES.includes(c as PaystackCurrency)) as PaystackCurrency[]
+    
+    if (parsed.length > 0) {
+      enabledCurrencies = parsed
+    }
+  }
+
+  // Always default to KES if no input
+  if (!input) {
+    return "KES"
+  }
+
+  const currency = input.toUpperCase().trim()
+
+  // If currency is KES, always use it
+  if (currency === "KES") {
+    return "KES"
+  }
+
+  // If currency is in enabled list, use it
+  if (enabledCurrencies.includes(currency as PaystackCurrency)) {
+    return currency as PaystackCurrency
+  }
+
+  // If currency is Paystack-supported but not enabled, default to KES
+  if (PAYSTACK_SUPPORTED_CURRENCIES.includes(currency as PaystackCurrency)) {
+    // Currency is supported by Paystack but not enabled for this merchant
+    // Always fall back to KES
+    return "KES"
+  }
+
+  // Map unsupported currencies to KES (default for Kenya)
+  const currencyMapping: Record<string, PaystackCurrency> = {
+    // Unsupported currencies → KES (default for Kenya)
+    UGX: "KES", // Uganda → KES
+    TZS: "KES", // Tanzania → KES
+    NGN: enabledCurrencies.includes("NGN") ? "NGN" : "KES", // Nigeria → KES if NGN not enabled
+    EUR: enabledCurrencies.includes("USD") ? "USD" : "KES",
+    GBP: enabledCurrencies.includes("USD") ? "USD" : "KES",
+    // Add more mappings as needed
+  }
+
+  if (currencyMapping[currency]) {
+    return currencyMapping[currency]
+  }
+
+  // Safe default: always KES
+  return "KES"
+}
+
 export type SupportedCurrency =
   | "USD"
   | "EUR"
@@ -23,12 +101,13 @@ export interface CurrencyConversion {
 }
 
 // Exchange rates (should be fetched from provider in production)
-// These are approximate rates - in production, fetch from Stripe/Flutterwave/Paystack
+// These are approximate rates - in production, fetch from Paystack or FX API
+// Updated for Kenya-based accounts (KES as base)
 const EXCHANGE_RATES: Record<SupportedCurrency, number> = {
   USD: 1.0,
   EUR: 0.92,
   GBP: 0.79,
-  KES: 130.0,
+  KES: 130.0, // 1 USD ≈ 130 KES
   NGN: 1500.0,
   ZAR: 18.5,
   GHS: 12.0,
@@ -119,11 +198,12 @@ export function getCurrencySymbol(currency: SupportedCurrency): string {
     UGX: "USh",
   }
 
-  return symbols[currency]
+  return symbols[currency] || currency
 }
 
 /**
- * Get currency for country
+ * Get currency for country (for display purposes)
+ * Note: For Paystack payments, use resolvePaystackCurrency() instead
  */
 export function getCurrencyForCountryCode(
   countryCode: string
@@ -173,7 +253,7 @@ export function getCurrencyForCountryCode(
 
 /**
  * Fetch live exchange rates from provider
- * In production, this should call Stripe/Flutterwave/Paystack APIs
+ * In production, this should call Paystack or a dedicated FX API
  */
 export async function fetchLiveExchangeRates(): Promise<
   Record<SupportedCurrency, number>

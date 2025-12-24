@@ -3,12 +3,14 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { getCurrencySymbol } from "@/lib/payments/currency"
 
 export default function UpgradePage() {
   const router = useRouter()
   const { data: session } = useSession()
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedProvider, setSelectedProvider] = useState<string | null>(null)
+  const [error, setError] = useState<string>("")
+  const [priceInfo, setPriceInfo] = useState<{ price: number; currency: string; priceUSD: number } | null>(null)
 
   useEffect(() => {
     if (session?.user && session.user.role !== "creator") {
@@ -16,20 +18,45 @@ export default function UpgradePage() {
     }
   }, [session, router])
 
-  const handleUpgrade = async (provider: string) => {
+  // Fetch price info on mount
+  useEffect(() => {
+    const fetchPrice = async () => {
+      try {
+        const res = await fetch("/api/payments/price-info?priceUSD=9.99&country=KE")
+        if (res.ok) {
+          const data = await res.json()
+          setPriceInfo({
+            price: data.price,
+            currency: data.currency,
+            priceUSD: data.priceUSD,
+          })
+        }
+      } catch (err) {
+        console.error("Failed to fetch price:", err)
+      }
+    }
+    fetchPrice()
+  }, [])
+
+  const handleUpgrade = async () => {
     if (!session?.user) {
-      router.push("/login")
+      router.push("/login?callbackUrl=/creator/upgrade")
+      return
+    }
+
+    if (session.user.role !== "creator") {
+      setError("Only creators can upgrade to Pro")
       return
     }
 
     setIsLoading(true)
-    setSelectedProvider(provider)
+    setError("")
 
     try {
       const res = await fetch("/api/subscriptions/pro/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider: provider.toUpperCase() }),
+        body: JSON.stringify({ country: "KE" }), // Kenya for KES
       })
 
       const data = await res.json()
@@ -38,18 +65,17 @@ export default function UpgradePage() {
         throw new Error(data.error || "Failed to create subscription")
       }
 
-      // Redirect to payment
-      if (data.redirectUrl) {
-        window.location.href = data.redirectUrl
-      } else if (data.clientSecret) {
-        // Handle Stripe client secret
-        // You would integrate Stripe Elements here
-        alert("Stripe payment integration needed")
+      // Redirect to Paystack payment page
+      const paymentUrl = data.payment_url || data.redirectUrl
+      
+      if (paymentUrl) {
+        window.location.href = paymentUrl
+      } else {
+        throw new Error("Payment URL not received. Please try again.")
       }
     } catch (error: any) {
-      alert(error.message || "Failed to start upgrade process")
+      setError(error.message || "Failed to start upgrade process")
       setIsLoading(false)
-      setSelectedProvider(null)
     }
   }
 
@@ -86,11 +112,32 @@ export default function UpgradePage() {
         <div className="mb-8 rounded-lg bg-white p-8 shadow-lg">
           <div className="text-center">
             <div className="mb-4">
-              <span className="text-5xl font-bold text-gray-900">$9.99</span>
-              <span className="text-gray-600">/month</span>
+              {priceInfo ? (
+                <>
+                  <span className="text-5xl font-bold text-gray-900">
+                    {getCurrencySymbol(priceInfo.currency as any)}
+                    {new Intl.NumberFormat("en-US", {
+                      minimumFractionDigits: priceInfo.currency === "KES" ? 0 : 2,
+                      maximumFractionDigits: priceInfo.currency === "KES" ? 0 : 2,
+                    }).format(priceInfo.price)}
+                  </span>
+                  <span className="text-gray-600">/month</span>
+                  {priceInfo.priceUSD !== priceInfo.price && (
+                    <p className="text-sm text-gray-500 mt-2">
+                      (Approx ${priceInfo.priceUSD.toFixed(2)} USD)
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="text-5xl font-bold text-gray-900">KSh 1,299</span>
+                  <span className="text-gray-600">/month</span>
+                  <p className="text-sm text-gray-500 mt-2">(Approx $9.99 USD)</p>
+                </>
+              )}
             </div>
             <p className="mb-8 text-gray-600">
-              Billed monthly • Cancel anytime
+              Billed monthly • Cancel anytime • Secure payment via Paystack
             </p>
           </div>
 
@@ -126,48 +173,36 @@ export default function UpgradePage() {
             </ul>
           </div>
 
-          {/* Payment Providers */}
+          {/* Single Upgrade Button */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-              Choose Payment Method:
-            </h3>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <button
-                onClick={() => handleUpgrade("stripe")}
-                disabled={isLoading}
-                className="rounded-lg border-2 border-gray-300 p-4 text-center transition-all hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50"
-              >
-                <div className="text-2xl mb-2">💳</div>
-                <div className="font-semibold">Stripe</div>
-                <div className="text-sm text-gray-600">Card Payment</div>
-              </button>
-              <button
-                onClick={() => handleUpgrade("paystack")}
-                disabled={isLoading}
-                className="rounded-lg border-2 border-gray-300 p-4 text-center transition-all hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50"
-              >
-                <div className="text-2xl mb-2">🇳🇬</div>
-                <div className="font-semibold">Paystack</div>
-                <div className="text-sm text-gray-600">Nigeria, Ghana</div>
-              </button>
-              <button
-                onClick={() => handleUpgrade("flutterwave")}
-                disabled={isLoading}
-                className="rounded-lg border-2 border-gray-300 p-4 text-center transition-all hover:border-blue-500 hover:bg-blue-50 disabled:opacity-50"
-              >
-                <div className="text-2xl mb-2">🌍</div>
-                <div className="font-semibold">Flutterwave</div>
-                <div className="text-sm text-gray-600">Pan-Africa</div>
-              </button>
-            </div>
+            {error && (
+              <div className="rounded-lg bg-red-50 p-4 text-red-700">
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+            )}
+            
+            <button
+              onClick={handleUpgrade}
+              disabled={isLoading}
+              className="w-full rounded-lg bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-4 text-lg font-semibold text-white transition-all hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+            >
+              {isLoading ? (
+                <span className="flex items-center justify-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Processing...
+                </span>
+              ) : (
+                "Upgrade to Pro"
+              )}
+            </button>
+            
+            <p className="text-center text-sm text-gray-500">
+              🔒 Secure payments powered by Paystack
+            </p>
           </div>
-
-          {isLoading && (
-            <div className="mt-6 text-center">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="mt-2 text-sm text-gray-600">Processing...</p>
-            </div>
-          )}
         </div>
 
         <div className="rounded-lg bg-blue-50 p-6">

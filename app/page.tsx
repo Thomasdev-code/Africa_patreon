@@ -13,7 +13,7 @@ export default function Home() {
       icon: "💳",
       title: "Multiple Payment Options",
       description:
-        "Accept payments via Stripe, Paystack, Flutterwave, and M-Pesa. Support fans from across Africa and the world.",
+        "Secure payments via Paystack. Support fans from across Africa with cards, bank transfers, and mobile money. Platform fee included.",
     },
     {
       icon: "📊",

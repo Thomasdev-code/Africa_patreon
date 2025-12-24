@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { startOneTimePayment, startMpesaPayment } from "@/lib/payments/payment-router"
 import { performFraudChecks } from "@/lib/payments/fraud"
 import { calculateTax } from "@/lib/tax/tax-engine"
+import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
+import { normalizeCountry } from "@/lib/payments"
 import { z } from "zod"
 
 const corsHeaders = {
@@ -13,9 +15,9 @@ const corsHeaders = {
 }
 
 const initializeSchema = z.object({
-  provider: z.enum(["STRIPE", "PAYSTACK", "FLUTTERWAVE", "MPESA"]).optional(),
+  provider: z.enum(["PAYSTACK", "MPESA"]).optional().default("PAYSTACK"),
   amount: z.number().positive(),
-  currency: z.string().default("USD"),
+  currency: z.string().optional(), // Optional - will be resolved server-side
   creatorId: z.string(),
   tierId: z.string().optional(),
   tierName: z.string(),
@@ -68,15 +70,25 @@ export async function POST(req: NextRequest) {
     }
 
     const amount = validated.amount || tier.price
+    
+    // CRITICAL: Always use KES for Kenya-based Paystack accounts
+    const normalizedCountry = normalizeCountry(validated.country || "KE")
+    const finalCurrency: PaystackCurrency = "KES"
+    
+    // Convert amount to KES if needed
+    // Approximate rate: 1 USD ≈ 130 KES
+    const convertedAmount = validated.currency === "KES"
+      ? amount
+      : amount * (validated.currency === "USD" ? 130 : validated.currency === "NGN" ? 130/1500 : validated.currency === "GHS" ? 130/12 : validated.currency === "ZAR" ? 130/18.5 : 130)
 
     // Fraud checks
     const ipAddress = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || ""
     const fraudCheck = await performFraudChecks({
       userId: session.user.id,
       creatorId: validated.creatorId,
-      amount,
-      currency: validated.currency,
-      provider: validated.provider || "STRIPE",
+      amount: convertedAmount,
+      currency: finalCurrency,
+      provider: validated.provider || "PAYSTACK",
       phoneNumber: validated.phoneNumber,
       ipAddress,
     })
@@ -89,9 +101,19 @@ export async function POST(req: NextRequest) {
     }
 
     // Calculate tax
-    const taxCalculation = validated.country
-      ? calculateTax(amount, validated.country)
-      : { taxRate: 0, taxAmount: 0, totalAmount: amount, countryCode: "", taxType: "NONE" }
+    const taxCalculation = normalizedCountry
+      ? calculateTax(convertedAmount, normalizedCountry)
+      : { taxRate: 0, taxAmount: 0, totalAmount: convertedAmount, countryCode: "", taxType: "NONE" }
+    
+    // Defensive logging
+    console.info("[MOBILE_PAY_INITIALIZE]", {
+      userId: session.user.id,
+      creatorId: validated.creatorId,
+      currency: finalCurrency,
+      provider: validated.provider || "PAYSTACK",
+      amountInMinor: Math.round(taxCalculation.totalAmount * 100),
+      country: normalizedCountry,
+    })
 
     // Handle M-Pesa separately
     if (validated.provider === "MPESA") {
@@ -104,7 +126,7 @@ export async function POST(req: NextRequest) {
 
       const mpesaResult = await startMpesaPayment({
         amount: taxCalculation.totalAmount,
-        currency: validated.currency,
+        currency: finalCurrency, // Use resolved currency
         phoneNumber: validated.phoneNumber,
         userId: session.user.id,
         creatorId: validated.creatorId,
@@ -115,6 +137,7 @@ export async function POST(req: NextRequest) {
           platform: validated.platform,
           taxAmount: taxCalculation.taxAmount,
           taxRate: taxCalculation.taxRate,
+          paystackCurrency: finalCurrency, // Store resolved currency
         },
       })
 
@@ -135,7 +158,7 @@ export async function POST(req: NextRequest) {
           provider: mpesaResult.provider,
           reference: mpesaResult.reference,
           amount: Math.round(taxCalculation.totalAmount * 100),
-          currency: validated.currency,
+          currency: finalCurrency, // Use resolved currency
           status: mpesaResult.status === "success" ? "success" : "pending",
           metadata: {
             ...mpesaResult.metadata,
@@ -166,18 +189,19 @@ export async function POST(req: NextRequest) {
     // Regular payment flow
     const paymentResult = await startOneTimePayment({
       amount: taxCalculation.totalAmount,
-      currency: validated.currency,
+      currency: finalCurrency, // Use resolved currency
       userId: session.user.id,
       creatorId: validated.creatorId,
       tierId: tier.id,
       tierName: tier.name,
-      country: validated.country,
+      country: normalizedCountry,
       providerPreference: validated.provider ? [validated.provider] : undefined,
       metadata: {
         email: session.user.email,
         platform: validated.platform,
         taxAmount: taxCalculation.taxAmount,
         taxRate: taxCalculation.taxRate,
+        paystackCurrency: finalCurrency, // Store resolved currency
       },
     })
 
@@ -198,7 +222,7 @@ export async function POST(req: NextRequest) {
         provider: paymentResult.provider,
         reference: paymentResult.reference,
         amount: Math.round(taxCalculation.totalAmount * 100),
-        currency: validated.currency,
+        currency: finalCurrency, // Use resolved currency
         status: "pending",
         metadata: {
           ...paymentResult.metadata,

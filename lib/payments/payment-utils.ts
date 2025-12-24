@@ -139,35 +139,15 @@ export function validateAmount(amount: number, currency: string): {
  * This function is kept for backward compatibility but returns a string type
  */
 export function getProviderNameForCountry(countryCode: string): PaymentProvider {
-  const code = countryCode.toUpperCase()
-  
-  // Kenya - prefer Flutterwave for M-Pesa
-  if (code === "KE") {
-    return "FLUTTERWAVE"
-  }
-  
-  // Nigeria, Ghana, South Africa - Paystack
-  if (["NG", "GH", "ZA"].includes(code)) {
-    return "PAYSTACK"
-  }
-  
-  // Other African countries - Flutterwave
-  const africanCountries = [
-    "EG", "TZ", "UG", "ET", "DZ", "SD", "MA", "AO", "MZ", "MG",
-    "CM", "CI", "NE", "BF", "ML", "MW", "ZM", "SN", "TD", "SO",
-    "ZW", "GN", "RW", "BJ", "TN", "BI", "SS", "TG", "SL", "LY",
-  ]
-  
-  if (africanCountries.includes(code)) {
-    return "FLUTTERWAVE"
-  }
-  
-  // Default to Stripe for rest of world
-  return "STRIPE"
+  // Paystack-only system
+  return "PAYSTACK"
 }
 
+import { getPlatformFeePercent, calculatePlatformFee as calculatePlatformFeeFromConfig, calculateCreatorPayout as calculateCreatorPayoutFromConfig } from "@/app/config/platform"
+
 /**
- * Calculate platform fee
+ * Calculate platform fee (synchronous version with explicit fee percentage)
+ * For new code, use the async version from @/app/config/platform
  */
 export function calculatePlatformFee(
   amount: number,
@@ -177,7 +157,8 @@ export function calculatePlatformFee(
 }
 
 /**
- * Calculate creator earnings (after platform fee)
+ * Calculate creator earnings (after platform fee) - synchronous version
+ * For new code, use the async version from @/app/config/platform
  */
 export function calculateCreatorEarnings(
   amount: number,
@@ -188,23 +169,10 @@ export function calculateCreatorEarnings(
 
 /**
  * Get current platform fee percentage from database
+ * @deprecated Use getPlatformFeePercent from @/app/config/platform instead
  */
 export async function getCurrentPlatformFee(): Promise<number> {
-  // Prefer Config override if present
-  const configValue = await prisma.config.findUnique({
-    where: { key: "platform_fee_percent" },
-  })
-
-  if (configValue) {
-    const parsed = Number(configValue.value)
-    if (Number.isFinite(parsed)) return parsed
-  }
-
-  const platformFee = await prisma.platformFee.findFirst({
-    orderBy: { updatedAt: "desc" },
-  })
-
-  return platformFee?.percentage ?? PLATFORM_FEE_PERCENT
+  return getPlatformFeePercent()
 }
 
 /**
@@ -212,6 +180,8 @@ export async function getCurrentPlatformFee(): Promise<number> {
  * Returns gross amount, platform fee, and creator net earnings
  * @param amount - Gross payment amount (in normal currency units, not cents)
  * @returns Object with grossAmount, platformFee, and creatorNet
+ * @deprecated Use calculateCreatorPayout from @/app/config/platform instead
+ * Note: This function maintains backwards compatibility by accepting normal currency units
  */
 export async function calculateCreatorPayout(
   amount: number
@@ -220,14 +190,16 @@ export async function calculateCreatorPayout(
   platformFee: number
   creatorNet: number
 }> {
-  const feePercentage = await getCurrentPlatformFee()
-  const platformFee = calculatePlatformFee(amount, feePercentage)
-  const creatorNet = amount - platformFee
+  // Convert to minor units for calculation
+  const amountMinor = Math.round(amount * 100)
+  const feePercentage = await getPlatformFeePercent()
+  const platformFee = calculatePlatformFee(amountMinor, feePercentage)
+  const creatorNet = amountMinor - platformFee
 
   return {
     grossAmount: amount,
-    platformFee,
-    creatorNet,
+    platformFee: platformFee / 100, // Convert back to normal units
+    creatorNet: creatorNet / 100, // Convert back to normal units
   }
 }
 

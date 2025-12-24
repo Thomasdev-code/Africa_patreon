@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { signOut } from "next-auth/react"
+import Link from "next/link"
 import type { User, CreatorProfile, Subscription } from "@/lib/types"
 
 export default function AdminDashboard() {
@@ -269,9 +270,26 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-600 mb-1">Total Revenue</p>
                 <p className="text-3xl font-bold text-green-600">${stats.totalRevenue.toFixed(2)}</p>
               </div>
-            <div className="bg-white rounded-lg shadow-md p-6">
-              <p className="text-sm text-gray-600 mb-1">Platform Fee % (current)</p>
+            <div className="bg-white rounded-lg shadow-md p-6 relative group hover:shadow-lg transition-shadow">
+              <div className="flex items-start justify-between mb-2">
+                <p className="text-sm text-gray-600 mb-1">Platform Fee % (current)</p>
+                <Link
+                  href="/admin/platform-fee"
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1"
+                >
+                  Configure
+                  <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
               <p className="text-3xl font-bold text-indigo-600">{stats.platformFeePercent}%</p>
+              <Link
+                href="/admin/platform-fee"
+                className="mt-3 inline-block text-xs text-indigo-600 hover:text-indigo-700 font-medium underline"
+              >
+                Click to change platform fee
+              </Link>
               <p className="text-xs text-gray-500 mt-3">Platform revenue by currency</p>
               <ul className="mt-1 space-y-1 text-xs text-gray-600">
                 {Object.keys(stats.platformRevenueByCurrency || {}).length === 0 && (

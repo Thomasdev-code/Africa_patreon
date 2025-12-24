@@ -4,10 +4,7 @@ import { useState, useEffect } from "react"
 import { getCurrencySymbol } from "@/lib/payments/currency"
 
 export type PaymentProviderOption =
-  | "stripe"
   | "paystack"
-  | "flutterwave"
-  | "mpesa_flutterwave"
   | "mpesa_paystack"
 
 interface ProviderSelectModalProps {
@@ -50,10 +47,7 @@ export default function ProviderSelectModal({
       const prices: Record<string, ProviderPriceInfo> = {}
       
       const providers: PaymentProviderOption[] = [
-        "stripe",
         "paystack",
-        "flutterwave",
-        "mpesa_flutterwave",
         "mpesa_paystack",
       ]
 
@@ -63,12 +57,10 @@ export default function ProviderSelectModal({
             try {
               // Convert provider option to API format
               let apiProvider: string
-              if (provider === "mpesa_flutterwave") {
-                apiProvider = "MPESA_FLW"
-              } else if (provider === "mpesa_paystack") {
+              if (provider === "mpesa_paystack") {
                 apiProvider = "MPESA_PAYSTACK"
               } else {
-                apiProvider = provider.toUpperCase()
+                apiProvider = "PAYSTACK"
               }
 
               const res = await fetch(
@@ -107,37 +99,16 @@ export default function ProviderSelectModal({
     available: boolean
   }> = [
     {
-      id: "stripe",
-      name: "Stripe",
-      description: "Credit & Debit Cards (Global)",
-      icon: "💳",
-      available: true,
-    },
-    {
       id: "paystack",
       name: "Paystack",
-      description: "Nigeria, Ghana, Kenya",
+      description: "Secure payments via Paystack - Cards, Bank Transfer, Mobile Money",
       icon: "🇳🇬",
-      available: true,
-    },
-    {
-      id: "flutterwave",
-      name: "Flutterwave",
-      description: "Pan-Africa Payment Gateway",
-      icon: "🌍",
-      available: true,
-    },
-    {
-      id: "mpesa_flutterwave",
-      name: "M-Pesa (Flutterwave)",
-      description: "Mobile Money via Flutterwave",
-      icon: "📱",
       available: true,
     },
     {
       id: "mpesa_paystack",
       name: "M-Pesa (Paystack)",
-      description: "Mobile Money via Paystack",
+      description: "Mobile Money via Paystack - Kenya",
       icon: "📱",
       available: true,
     },

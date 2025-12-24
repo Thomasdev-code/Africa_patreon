@@ -1,8 +1,10 @@
 /**
  * Payment Provider Types
+ *
+ * Paystack is now the only supported provider.
  */
 
-export type PaymentProvider = "STRIPE" | "PAYSTACK" | "FLUTTERWAVE"
+export type PaymentProvider = "PAYSTACK"
 
 export type PaymentStatus = "pending" | "success" | "failed" | "cancelled"
 

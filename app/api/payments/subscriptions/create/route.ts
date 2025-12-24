@@ -7,17 +7,19 @@ import {
   calculatePlatformFee,
   calculateCreatorPayout,
 } from "@/app/config/platform"
+import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
+import { normalizeCountry } from "@/lib/payments"
 
 const subscriptionSchema = z.object({
   creatorId: z.string(),
   tierId: z.string().optional(),
   tierName: z.string(),
   amount: z.number().optional(),
-  currency: z.string().default("USD"),
+  currency: z.string().optional(), // Optional - will be resolved server-side
   country: z.string().optional(),
   autoRenew: z.boolean().default(true),
   interval: z.enum(["month", "year"]).default("month"),
-  providerPreference: z.array(z.enum(["STRIPE", "PAYSTACK", "FLUTTERWAVE"])).optional(),
+  providerPreference: z.array(z.enum(["PAYSTACK"])).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -57,9 +59,31 @@ export async function POST(req: NextRequest) {
     }
 
     const tierPrice = validated.amount || tier.price
-    const amountMinor = Math.round(tierPrice * 100)
-    const platformFee = calculatePlatformFee(amountMinor)
-    const creatorEarnings = calculateCreatorPayout(amountMinor)
+    
+    // CRITICAL: Always use KES for Kenya-based Paystack accounts
+    const normalizedCountry = normalizeCountry(validated.country || "KE")
+    const finalCurrency: PaystackCurrency = "KES"
+    
+    // Convert tier price to KES
+    // Approximate rate: 1 USD ≈ 130 KES
+    const convertedPrice = tierPrice * 130
+    
+    const amountMinor = Math.round(convertedPrice * 100)
+    const platformFee = await calculatePlatformFee(amountMinor)
+    const creatorEarnings = await calculateCreatorPayout(amountMinor)
+
+    // Defensive logging
+    console.info("[SUBSCRIPTION_CREATE]", {
+      userId: session.user.id,
+      creatorId: validated.creatorId,
+      tierName: tier.name,
+      currency: finalCurrency,
+      provider: "PAYSTACK",
+      amountInMinor,
+      platformFee,
+      creatorEarnings,
+      country: normalizedCountry,
+    })
 
     // Check for existing subscription
     const existingSubscription = await prisma.subscription.findFirst({
@@ -79,13 +103,13 @@ export async function POST(req: NextRequest) {
 
     // Start subscription with automatic provider selection
     const result = await startSubscription({
-      amount: tierPrice,
-      currency: validated.currency,
+      amount: convertedPrice, // Use converted price
+      currency: finalCurrency, // Use resolved currency
       userId: session.user.id,
       creatorId: validated.creatorId,
       tierId: tier.id,
       tierName: tier.name,
-      country: validated.country,
+      country: normalizedCountry,
       autoRenew: validated.autoRenew,
       interval: validated.interval,
       providerPreference: validated.providerPreference,
@@ -93,6 +117,7 @@ export async function POST(req: NextRequest) {
         email: session.user.email,
         tierId: tier.id,
         interval: validated.interval,
+        paystackCurrency: finalCurrency, // Store resolved currency
       },
     })
 
@@ -109,11 +134,11 @@ export async function POST(req: NextRequest) {
         userId: session.user.id,
         creatorId: validated.creatorId,
         tierName: tier.name,
-        tierPrice: tierPrice,
+        tierPrice: convertedPrice,
         provider: result.provider,
         reference: result.reference,
         amount: amountMinor,
-        currency: validated.currency,
+        currency: finalCurrency, // Use resolved currency
         status: "pending",
         type: "subscription",
         metadata: {
@@ -134,7 +159,7 @@ export async function POST(req: NextRequest) {
         fanId: session.user.id,
         creatorId: validated.creatorId,
         tierName: tier.name,
-        tierPrice: tierPrice,
+        tierPrice: convertedPrice,
         status: "pending",
         paymentProvider: result.provider,
         paymentReference: result.reference,
