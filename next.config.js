@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
 
+  // Explicitly disable Turbopack (we're using Webpack)
+  turbopack: {},
+
   // Correct way to exclude Prisma from bundling in Next 16
   serverExternalPackages: ['@prisma/client'],
 
