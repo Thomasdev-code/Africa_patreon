@@ -297,8 +297,6 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
             })
           }
         }
-      }
-        }
       } else if (event.status === "failed" && payment.subscription) {
         // Cancel subscription on payment failure
         await tx.subscription.update({
