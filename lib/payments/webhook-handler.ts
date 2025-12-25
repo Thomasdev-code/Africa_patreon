@@ -16,6 +16,7 @@ import {
   getPlatformFeePercent,
   PLATFORM_FEE_PERCENT,
 } from "@/app/config/platform"
+import { fromSmallestUnit } from "./payment-utils"
 import type { PaymentStatus } from "./types"
 
 export interface PaymentEvent {
@@ -168,7 +169,7 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
       })
 
       // Create earnings record with net amount
-      await prisma.earnings.create({
+      await tx.earnings.create({
         data: {
           creatorId: payment.creatorId,
           paymentId: payment.id,
@@ -247,7 +248,16 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
     }
 
       // Handle subscription-specific logic
-      if (event.status === "success" && payment.subscription) {
+      // Check for failed status first to avoid type narrowing issues
+      if (payment.subscription && event.status === "failed") {
+        // Cancel subscription on payment failure
+        await tx.subscription.update({
+          where: { id: payment.subscription.id },
+          data: {
+            status: "cancelled",
+          },
+        })
+      } else if (event.status === "success" && payment.subscription) {
         // Activate subscription if not already active
         if (payment.subscription.status !== "active") {
           const subscriptionEndDate = new Date(
@@ -297,18 +307,7 @@ export async function processPaymentEvent(event: PaymentEvent): Promise<void> {
             })
           }
         }
-      } else if (event.status === "failed" && payment.subscription) {
-        // Cancel subscription on payment failure
-        await tx.subscription.update({
-        where: { id: payment.subscription.id },
-        data: {
-          status: "cancelled",
-        },
-      })
       }
-    }, {
-      timeout: 30000, // 30 second timeout for transaction
-      isolationLevel: 'ReadCommitted', // Prevent dirty reads
     })
 
     // Notify creator of new subscription (outside transaction - best effort)
@@ -403,19 +402,21 @@ export async function processRenewalEvent(event: PaymentEvent): Promise<void> {
 
     if (event.status === "success") {
       // Calculate platform fee and creator net earnings
-      const grossAmount = fromSmallestUnit(renewalPayment.amount, renewalPayment.currency)
-      const payout = await calculateCreatorPayout(grossAmount)
+      // renewalPayment.amount is already in minor units, so use it directly
+      const grossAmountMinor = renewalPayment.amount
+      const platformFee = await calculatePlatformFee(grossAmountMinor)
+      const creatorNet = await calculateCreatorPayout(grossAmountMinor)
 
       // Update creator wallet with net earnings
       const creatorWallet = await prisma.creatorWallet.upsert({
         where: { userId: subscription.creatorId },
         create: {
           userId: subscription.creatorId,
-          balance: payout.creatorNet,
+          balance: creatorNet,
         },
         update: {
           balance: {
-            increment: payout.creatorNet,
+            increment: creatorNet,
           },
         },
       })
@@ -426,7 +427,7 @@ export async function processRenewalEvent(event: PaymentEvent): Promise<void> {
           creatorId: subscription.creatorId,
           paymentId: renewalPayment.id,
           type: "renewal",
-          amount: payout.creatorNet, // Store net amount
+          amount: creatorNet, // Store net amount
           balanceAfter: creatorWallet.balance,
         },
       })
@@ -437,10 +438,10 @@ export async function processRenewalEvent(event: PaymentEvent): Promise<void> {
         data: {
           metadata: {
             ...(renewalPayment.metadata as any),
-            platformFee: payout.platformFee,
-            platformFeePercentage: (payout.platformFee / payout.grossAmount) * 100,
-            grossAmount: payout.grossAmount,
-            creatorNet: payout.creatorNet,
+            platformFee,
+            platformFeePercentage: (platformFee / grossAmountMinor) * 100,
+            grossAmount: grossAmountMinor,
+            creatorNet,
           },
         },
       })
