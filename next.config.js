@@ -1,12 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverActions: true
-  },
   reactStrictMode: true,
-  // Exclude native dependencies from being bundled
-  serverComponentsExternalPackages: ['@prisma/client'],
+
+  // Correct way to exclude Prisma from bundling in Next 16
   serverExternalPackages: ['@prisma/client'],
+
   images: {
     remotePatterns: [
       {
@@ -19,7 +17,8 @@ const nextConfig = {
       },
     ],
   },
-  // Optimize chunk loading and prevent timeout errors
+
+  // Webpack config (safe since we force --webpack)
   webpack: (config, { isServer }) => {
     if (!isServer) {
       config.optimization = {
