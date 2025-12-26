@@ -4,6 +4,7 @@ import { checkProAccess, hasEnoughCredits, deductAiCredits } from "@/lib/ai/chec
 import { generateWithOpenAI } from "@/lib/ai/openai-client"
 import { checkRateLimit } from "@/lib/ai/rate-limiter"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 export async function POST(req: NextRequest) {
   try {
@@ -108,7 +109,7 @@ export async function POST(req: NextRequest) {
               toolType: "title",
               creditsUsed: success ? 1 : 0,
               input: { topic, count },
-              output: success ? { titles: titlesText } : null,
+              output: success ? { titles: titlesText } : Prisma.JsonNull,
               success,
               errorMessage,
             },

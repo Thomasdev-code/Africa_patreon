@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
     })
 
     return NextResponse.json({
-      payouts: payouts.map((p) => ({
+      payouts: payouts.map((p: any) => ({
         id: p.id,
         userId: p.wallet.userId,
         userEmail: p.wallet.user.email,

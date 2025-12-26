@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     })
 
     return NextResponse.json({
-      profiles: profiles.map((p) => ({
+      profiles: profiles.map((p: any) => ({
         userId: p.userId,
         userEmail: p.user.email,
         riskScore: p.riskScore,
