@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { verifyMpesaPayment } from "@/lib/payments/payment-router"
+import { verifyMpesaTransaction } from "@/lib/payments/mpesa"
 import { prisma } from "@/lib/prisma"
 import { processPaymentEvent } from "@/lib/payments/webhook-handler"
 
@@ -30,8 +30,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Verify payment status
-    const verification = await verifyMpesaPayment(
-      provider,
+    const verification = await verifyMpesaTransaction(
+      provider as "PAYSTACK",
       reference
     )
 
@@ -44,12 +44,12 @@ export async function POST(req: NextRequest) {
       // Process payment event to activate subscription
       await processPaymentEvent({
         event: "mpesa.verified",
-        reference: verification.reference,
+        reference: reference,
         status: verification.status,
         amount: verification.amount,
         currency: verification.currency,
         metadata: verification.metadata,
-        provider: provider,
+        provider: provider as "PAYSTACK",
       })
     }
 

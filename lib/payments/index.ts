@@ -47,6 +47,8 @@ export {
 export * from "./payment-providers"
 export * from "./router"
 export * from "./payment-router"
+export * from "./unified"
+export * from "./mpesa"
 
 // Note: getProviderForCountry and getPaymentProvider are already exported above
 // as functions that return PaymentProviderInterface instances (SDK objects)

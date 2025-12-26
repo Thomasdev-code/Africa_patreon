@@ -143,7 +143,7 @@ export function getProviderNameForCountry(countryCode: string): PaymentProvider 
   return "PAYSTACK"
 }
 
-import { getPlatformFeePercent, calculatePlatformFee as calculatePlatformFeeFromConfig, calculateCreatorPayout as calculateCreatorPayoutFromConfig } from "@/app/config/platform"
+import { getPlatformFeePercent, calculatePlatformFee, calculateCreatorPayout } from "@/app/config/platform"
 
 /**
  * Calculate platform fee (synchronous version with explicit fee percentage)

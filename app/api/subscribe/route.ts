@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { createCheckoutSession, getProviderNameForCountry } from "@/lib/payments"
+import { startSubscription, getProviderNameForCountry } from "@/lib/payments/payment-router"
 import type { CreateSubscriptionInput, PaymentProvider } from "@/lib/types"
 
 export async function POST(req: NextRequest) {
@@ -119,15 +119,15 @@ export async function POST(req: NextRequest) {
     // Determine provider
     const finalProvider: PaymentProvider = paymentProvider || getProviderNameForCountry(country || "US")
 
-    // Create checkout session
-    const paymentResult = await createCheckoutSession({
+    // Create subscription payment
+    const paymentResult = await startSubscription({
       userId: session.user.id,
       creatorId: creatorId,
       tierName: tierName,
-      tierPrice: tierPrice,
-      currency: "USD", // Default, can be made dynamic
+      amount: tierPrice,
+      currency: "KES", // Using KES for Paystack
       country: country,
-      provider: finalProvider,
+      providerPreference: finalProvider ? [finalProvider] : undefined,
       metadata: {
         subscriptionId: subscription.id,
         creatorUsername: creator.creatorProfile.username,

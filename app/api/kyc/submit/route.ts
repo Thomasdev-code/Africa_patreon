@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { uploadFile } from "@/lib/storage"
+import { storage } from "@/lib/storage"
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,23 +24,29 @@ export async function POST(req: NextRequest) {
     }
 
     // Upload documents
-    const idDocumentUrl = await uploadFile(
+    const idDocumentResult = await storage.uploadFile(
       idDocument,
-      `kyc/${session.user.id}/id-${Date.now()}.${idDocument.name.split(".").pop()}`
+      `id-${Date.now()}.${idDocument.name.split(".").pop()}`,
+      `kyc/${session.user.id}`
     )
+    const idDocumentUrl = idDocumentResult.url
 
-    const selfieUrl = await uploadFile(
+    const selfieResult = await storage.uploadFile(
       selfie,
-      `kyc/${session.user.id}/selfie-${Date.now()}.${selfie.name.split(".").pop()}`
+      `selfie-${Date.now()}.${selfie.name.split(".").pop()}`,
+      `kyc/${session.user.id}`
     )
+    const selfieUrl = selfieResult.url
 
     let addressProofUrl: string | undefined
 
     if (addressProof) {
-      addressProofUrl = await uploadFile(
+      const addressProofResult = await storage.uploadFile(
         addressProof,
-        `kyc/${session.user.id}/address-${Date.now()}.${addressProof.name.split(".").pop()}`
+        `address-${Date.now()}.${addressProof.name.split(".").pop()}`,
+        `kyc/${session.user.id}`
       )
+      addressProofUrl = addressProofResult.url
     }
 
     // Create or update KYC verification

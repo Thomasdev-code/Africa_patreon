@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
-import { startMpesaPayment } from "@/lib/payments/payment-router"
+import { sendMpesaStkPush } from "@/lib/payments/mpesa"
 import { prisma } from "@/lib/prisma"
 
 export async function POST(req: NextRequest) {
@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Initiate M-Pesa payment via Flutterwave/Paystack
-    const result = await startMpesaPayment({
+    // Initiate M-Pesa payment via Paystack
+    const result = await sendMpesaStkPush({
       amount: tierPrice,
       currency,
       phoneNumber,
