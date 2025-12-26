@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     })
 
     return NextResponse.json({
-      chargebacks: chargebacks.map((cb) => ({
+      chargebacks: chargebacks.map((cb: any) => ({
         id: cb.id,
         userId: cb.userId,
         creatorId: cb.creatorId,

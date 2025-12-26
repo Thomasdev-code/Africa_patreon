@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
     // Verify payment
     const verification = await verifyPayment(provider, paymentReference)
 
-    if (verification.status === "successful") {
+    if (verification.status === "success") {
       // Update subscription to active
       await prisma.subscription.update({
         where: { id: subscription.id },

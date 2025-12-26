@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         amount: payout.amount,
         currency: payout.currency,
         creatorId: payout.creatorId,
-        method: validated.method,
+        method: validated.method === "mpesa" ? "mobile_money" : validated.method,
         accountDetails: validated.accountDetails,
         metadata: {
           payoutId: payout.id,

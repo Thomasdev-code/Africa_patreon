@@ -2,9 +2,14 @@
  * Unified Payment Processing Layer
  */
 
-import { getPaymentProvider } from "./index"
+import { paystackSDK } from "./payment-providers"
 import type { PaymentProvider, PaymentStatus } from "./types"
 import { prisma } from "@/lib/prisma"
+
+// Helper to get provider SDK (Paystack-only)
+function getPaymentProvider(_provider: PaymentProvider) {
+  return paystackSDK
+}
 
 export interface ProcessPaymentInput {
   provider: PaymentProvider
@@ -103,9 +108,11 @@ export async function processPayment(
 
 /**
  * Verify a payment by reference
+ * Supports both object input and separate arguments for backwards compatibility
  */
 export async function verifyPayment(
-  input: VerifyPaymentInput
+  providerOrInput: PaymentProvider | VerifyPaymentInput,
+  reference?: string
 ): Promise<{
   success: boolean
   status: PaymentStatus
@@ -115,6 +122,12 @@ export async function verifyPayment(
   error?: string
 }> {
   try {
+    // Support both call styles: verifyPayment({ provider, reference }) or verifyPayment(provider, reference)
+    const input: VerifyPaymentInput = 
+      typeof providerOrInput === 'string' 
+        ? { provider: providerOrInput, reference: reference! }
+        : providerOrInput
+    
     const provider = getPaymentProvider(input.provider)
     const verification = await provider.verifyPayment(input.reference)
 
@@ -136,9 +149,16 @@ export async function verifyPayment(
       })
     }
 
+    // Normalize status to match what callers expect ("successful" vs "success")
+    const normalizedStatus: PaymentStatus = 
+      verification.status === "success" ? "success" :
+      verification.status === "failed" ? "failed" :
+      verification.status === "cancelled" ? "cancelled" :
+      "pending"
+    
     return {
-      success: true,
-      status: verification.status,
+      success: normalizedStatus === "success",
+      status: normalizedStatus,
       amount: verification.amount,
       currency: verification.currency,
       metadata: verification.metadata,

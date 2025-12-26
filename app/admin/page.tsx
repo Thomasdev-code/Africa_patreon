@@ -45,10 +45,9 @@ export default function AdminDashboard() {
       fetchSubscriptions()
     } else if (activeTab === "payouts") {
       fetchPayouts()
+      fetchPayoutRequests()
     } else if (activeTab === "payments") {
       fetchPayments()
-    } else if (activeTab === "payouts") {
-      fetchPayoutRequests()
     }
   }, [activeTab])
 

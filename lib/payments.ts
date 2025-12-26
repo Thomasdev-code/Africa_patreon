@@ -163,3 +163,6 @@ export function validateProvider(_provider: string): boolean {
   return true
 }
 
+// Re-export verifyPayment from payments/unified for compatibility
+export { verifyPayment } from "./payments/unified"
+

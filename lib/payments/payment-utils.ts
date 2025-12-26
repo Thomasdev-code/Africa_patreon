@@ -4,7 +4,8 @@
  */
 
 import { prisma } from "@/lib/prisma"
-import { PLATFORM_FEE_PERCENT, getPlatformFeePercent } from "@/app/config/platform"
+import { PLATFORM_FEE_PERCENT } from "@/app/config/platform"
+import { getPlatformFeePercent } from "@/app/config/platform"
 import type { PaymentProvider } from "./types"
 
 /**
@@ -142,8 +143,6 @@ export function getProviderNameForCountry(countryCode: string): PaymentProvider 
   // Paystack-only system
   return "PAYSTACK"
 }
-
-import { getPlatformFeePercent, calculatePlatformFee, calculateCreatorPayout } from "@/app/config/platform"
 
 /**
  * Calculate platform fee (synchronous version with explicit fee percentage)

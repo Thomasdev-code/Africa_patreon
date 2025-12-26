@@ -42,10 +42,10 @@ export async function POST(req: NextRequest) {
     }
 
     // If payment status is provided directly, use it
-    let verifiedStatus: "successful" | "failed" | "pending" = "pending"
+    let verifiedStatus: "success" | "failed" | "pending" = "pending"
 
     if (paymentStatus === "successful" || paymentStatus === "success") {
-      verifiedStatus = "successful"
+      verifiedStatus = "success"
     } else if (paymentStatus === "failed" || paymentStatus === "cancelled") {
       verifiedStatus = "failed"
     } else if (provider && reference) {
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Update subscription based on verification
-    if (verifiedStatus === "successful") {
+    if (verifiedStatus === "success") {
       await prisma.subscription.update({
         where: { id: subscriptionId },
         data: {

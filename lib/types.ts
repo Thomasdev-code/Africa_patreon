@@ -306,6 +306,7 @@ export type NotificationType =
   | "post"
   | "poll"
   | "poll_vote"
+  | "chargeback"
 
 export interface NotificationData {
   id: string

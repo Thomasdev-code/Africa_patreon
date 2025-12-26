@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
 /**
  * GET /api/admin/platform-fee/analytics
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
         status: "success",
         metadata: {
           path: ["platformFee"],
-          not: null,
+          not: Prisma.JsonNull,
         },
       },
       select: {

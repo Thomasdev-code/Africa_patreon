@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
     // Verify payment with provider
     const verification = await verifyPayment(provider, paymentReference)
 
-    if (verification.status === "successful" && subscription.status !== "active") {
+    if (verification.status === "success" && subscription.status !== "active") {
       // Activate subscription
       await prisma.subscription.update({
         where: { id: subscription.id },

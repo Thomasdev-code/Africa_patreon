@@ -4,6 +4,8 @@
 
 import { paystackSDK } from "./payment-providers"
 import type { PaymentProvider, PaymentStatus } from "./types"
+import { sendMpesaStkPush } from "./mpesa"
+import { getProviderNameForCountry } from "./payment-utils"
 
 export interface PaymentRequest {
   amount: number
@@ -176,4 +178,50 @@ export async function routePayout(
     }
   }
 }
+
+/**
+ * Start M-Pesa payment (alias for sendMpesaStkPush)
+ */
+export async function startMpesaPayment(
+  request: {
+    amount: number
+    currency: string
+    phoneNumber: string
+    userId: string
+    creatorId: string
+    tierId?: string
+    tierName: string
+    metadata?: Record<string, any>
+  }
+): Promise<{
+  success: boolean
+  provider: PaymentProvider
+  reference: string
+  status: PaymentStatus
+  metadata?: Record<string, any>
+  error?: string
+}> {
+  const result = await sendMpesaStkPush({
+    amount: request.amount,
+    currency: request.currency,
+    phoneNumber: request.phoneNumber,
+    userId: request.userId,
+    creatorId: request.creatorId,
+    tierId: request.tierId,
+    tierName: request.tierName,
+    metadata: request.metadata,
+  })
+
+  return {
+    success: result.success,
+    provider: result.provider,
+    reference: result.reference,
+    status: result.status,
+    metadata: result.metadata,
+    error: result.error,
+  }
+}
+
+// Re-export getProviderNameForCountry for convenience
+export { getProviderNameForCountry }
 

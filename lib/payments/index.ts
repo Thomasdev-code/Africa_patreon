@@ -27,6 +27,8 @@ export * from "./types"
 export * from "./currency"
 
 // Export payment-utils (selective to avoid conflicts)
+// Note: calculatePlatformFee and calculateCreatorPayout are NOT exported here
+// to avoid conflicts with @/app/config/platform. Import directly from payment-utils if needed.
 export {
   generatePaymentReference,
   toSmallestUnit,
@@ -35,10 +37,8 @@ export {
   getCurrencySymbol,
   isPaymentProcessed,
   validateAmount,
-  calculatePlatformFee,
   calculateCreatorEarnings,
   getCurrentPlatformFee,
-  calculateCreatorPayout,
   retryWithBackoff,
   getProviderNameForCountry,
 } from "./payment-utils"
@@ -49,6 +49,9 @@ export * from "./router"
 export * from "./payment-router"
 export * from "./unified"
 export * from "./mpesa"
+
+// Explicitly export verifyPayment for better Turbopack compatibility
+export { verifyPayment } from "./unified"
 
 // Note: getProviderForCountry and getPaymentProvider are already exported above
 // as functions that return PaymentProviderInterface instances (SDK objects)
