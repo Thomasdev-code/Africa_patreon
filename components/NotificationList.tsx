@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import type { NotificationWithPost } from "@/lib/types"
+import type { NotificationData } from "@/lib/types"
 
 interface NotificationListProps {
   onNotificationClick?: (notificationId: string, postId: string) => void
@@ -13,7 +13,7 @@ export default function NotificationList({
   onNotificationClick,
   showUnreadOnly = false,
 }: NotificationListProps) {
-  const [notifications, setNotifications] = useState<NotificationWithPost[]>([])
+  const [notifications, setNotifications] = useState<NotificationData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
 
@@ -31,7 +31,7 @@ export default function NotificationList({
 
       if (res.ok) {
         const filtered = showUnreadOnly
-          ? data.notifications.filter((n: NotificationWithPost) => !n.isRead)
+          ? data.notifications.filter((n: NotificationData) => !n.isRead)
           : data.notifications
         setNotifications(filtered)
         setUnreadCount(data.unreadCount || 0)
@@ -77,13 +77,16 @@ export default function NotificationList({
     }
   }
 
-  const handleNotificationClick = (notification: NotificationWithPost) => {
+  const handleNotificationClick = (notification: NotificationData) => {
     if (!notification.isRead) {
       handleMarkAsRead(notification.id)
     }
 
-    if (onNotificationClick) {
-      onNotificationClick(notification.id, notification.postId)
+    if (onNotificationClick && notification.link) {
+      // Extract postId from link if it's in the format /post/[postId] or /creator/[username]/post/[postId]
+      const postIdMatch = notification.link.match(/\/post\/([^\/]+)/)
+      const postId = postIdMatch ? postIdMatch[1] : ""
+      onNotificationClick(notification.id, postId)
     }
   }
 
@@ -129,7 +132,7 @@ export default function NotificationList({
         >
           <div className="flex items-start justify-between">
             <div className="flex-1">
-              <p className="text-sm text-gray-900">{notification.message}</p>
+              <p className="text-sm text-gray-900">{notification.body}</p>
               <p className="text-xs text-gray-500 mt-1">
                 {new Date(notification.createdAt).toLocaleString()}
               </p>

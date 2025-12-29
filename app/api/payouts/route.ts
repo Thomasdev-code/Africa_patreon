@@ -7,7 +7,7 @@ import { z } from "zod"
 const payoutSchema = z.object({
   amount: z.number().positive(),
   currency: z.string().default("USD"),
-  method: z.enum(["mpesa", "bank", "stripe_connect"]),
+  method: z.enum(["mpesa", "bank"]),
   accountDetails: z.object({
     phoneNumber: z.string().optional(),
     accountNumber: z.string().optional(),
@@ -51,12 +51,6 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    if (validated.method === "stripe_connect" && !validated.accountDetails.destination) {
-      return NextResponse.json(
-        { error: "Stripe destination required for Stripe Connect payout" },
-        { status: 400 }
-      )
-    }
 
     // Get creator wallet
     const wallet = await prisma.creatorWallet.findUnique({
@@ -92,11 +86,14 @@ export async function POST(req: NextRequest) {
     }
 
     // Route payout to appropriate provider
+    // Map "mpesa" to "mobile_money" for routePayout
+    const payoutMethod = validated.method === "mpesa" ? "mobile_money" : validated.method
+    
     const result = await routePayout({
       amount: validated.amount,
       currency: validated.currency,
       creatorId: session.user.id,
-      method: validated.method,
+      method: payoutMethod,
       accountDetails: validated.accountDetails,
       metadata: {
         userId: session.user.id,

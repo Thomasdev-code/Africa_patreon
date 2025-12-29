@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { getPaymentProvider } from "@/lib/payments"
+import { verifyPayment } from "@/lib/payments"
 import { verifyMpesaTransaction } from "@/lib/payments/mpesa"
 import { processPaymentEvent } from "@/lib/payments/webhook-handler"
 import { z } from "zod"
@@ -60,13 +60,24 @@ export async function POST(req: NextRequest) {
 
     if (validated.provider === "MPESA" || payment.provider === "MPESA_PAYSTACK") {
       // M-Pesa verification via Paystack
-      verification = await verifyMpesaTransaction(
+      const mpesaResult = await verifyMpesaTransaction(
         "PAYSTACK",
         validated.reference
       )
+      verification = {
+        ...mpesaResult,
+        reference: validated.reference,
+      }
     } else {
-      const provider = getPaymentProvider(validated.provider || "PAYSTACK")
-      verification = await provider.verifyPayment(validated.reference)
+      // PAYSTACK verification
+      const result = await verifyPayment("PAYSTACK", validated.reference)
+      verification = {
+        status: result.status,
+        reference: validated.reference,
+        amount: result.amount,
+        currency: result.currency,
+        metadata: result.metadata,
+      }
     }
 
     // Update payment status
@@ -77,6 +88,8 @@ export async function POST(req: NextRequest) {
       })
 
       // Process payment event
+      // Note: processPaymentEvent only accepts "PAYSTACK" as provider
+      // MPESA payments use Paystack backend, so we always use "PAYSTACK" here
       await processPaymentEvent({
         event: "payment.verified",
         reference: verification.reference,
@@ -84,7 +97,7 @@ export async function POST(req: NextRequest) {
         amount: verification.amount,
         currency: verification.currency,
         metadata: verification.metadata,
-        provider: validated.provider || payment.provider || "PAYSTACK",
+        provider: "PAYSTACK",
       })
     }
 

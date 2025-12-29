@@ -142,6 +142,9 @@ export interface UpdatePostInput {
   mediaUrl?: string
   tierName?: string | null
   isPublished?: boolean
+  isPPV?: boolean
+  ppvPrice?: number | null
+  ppvCurrency?: string | null
 }
 
 export interface PostPreview {
@@ -430,35 +433,6 @@ export interface PublicPoll extends Poll {
   resultsHidden: boolean
 }
 
-// Referral Types
-export interface Referral {
-  id: string
-  referrerId: string
-  referredUserId: string | null
-  referralCode: string
-  referralLink: string
-  type: "signup" | "subscription"
-  subscriptionId: string | null
-  subscriptionValue: number | null
-  creditsEarned: number
-  status: "clicked" | "signed_up" | "converted" | "credited"
-  clickedAt: Date
-  convertedAt: Date | null
-  createdAt: Date
-}
-
-export interface ReferralCredit {
-  id: string
-  userId: string
-  referralId: string | null
-  amount: number
-  type: "signup" | "subscription" | "bonus" | "withdrawal" | "conversion"
-  status: "pending" | "available" | "withdrawn" | "converted"
-  description: string
-  withdrawalId: string | null
-  convertedTo: string | null
-  createdAt: Date
-}
 
 export interface ReferralStats {
   totalClicks: number

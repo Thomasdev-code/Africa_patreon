@@ -62,7 +62,7 @@ export async function calculateRiskScore(userId: string): Promise<RiskScoreResul
     }
   }
 
-  flags.kycStatus = user.kycVerification?.status || null
+  flags.kycStatus = (user.kycVerification?.status as "pending" | "approved" | "rejected" | undefined) || null
 
   // Check KYC status
   if (!user.kycVerification || user.kycVerification.status !== "approved") {

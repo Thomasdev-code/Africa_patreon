@@ -120,7 +120,7 @@ export class PaystackProvider implements PaymentProviderInterface {
         errorMessage.toLowerCase().includes("not supported") ||
         (paystackCurrency !== "NGN" && errorMessage)
 
-      // If currency is not supported by merchant, fallback to NGN
+      // If currency is not supported by merchant, fallback to KES
       if (isCurrencyError && paystackCurrency !== "NGN") {
         console.warn(`[PAYMENT] Currency ${paystackCurrency} not supported, falling back to KES`, {
           userId,
@@ -132,7 +132,8 @@ export class PaystackProvider implements PaymentProviderInterface {
 
         // Convert amount to KES if needed
         // Simplified conversion - in production use real rates
-        const conversionRate = paystackCurrency === "USD" ? 130 : paystackCurrency === "NGN" ? 130/1500 : paystackCurrency === "GHS" ? 130/12 : paystackCurrency === "ZAR" ? 130/18.5 : 1
+        // Note: paystackCurrency is already narrowed to exclude "NGN" by the if condition
+        const conversionRate = paystackCurrency === "USD" ? 130 : paystackCurrency === "GHS" ? 130/12 : paystackCurrency === "ZAR" ? 130/18.5 : 1
         const kesAmount = amount * conversionRate
         const kesAmountInCents = convertToSmallestUnit(kesAmount, "KES")
 
@@ -220,6 +221,9 @@ export class PaystackProvider implements PaymentProviderInterface {
   }> {
     // Verify webhook signature
     if (signature) {
+      if (!PAYSTACK_SECRET_KEY) {
+        throw new Error("PAYSTACK_SECRET_KEY is required for webhook verification")
+      }
       const hash = crypto
         .createHmac("sha512", PAYSTACK_SECRET_KEY)
         .update(JSON.stringify(payload))
@@ -368,6 +372,7 @@ export class PaystackProvider implements PaymentProviderInterface {
         })
 
         // Convert amount to KES if needed
+        // Note: paystackCurrency is already narrowed to exclude "KES" by the if condition
         const conversionRate = paystackCurrency === "USD" ? 130 : paystackCurrency === "NGN" ? 130/1500 : paystackCurrency === "GHS" ? 130/12 : paystackCurrency === "ZAR" ? 130/18.5 : 1
         const kesAmount = amount * conversionRate
         const kesAmountInCents = convertToSmallestUnit(kesAmount, "KES")
@@ -426,24 +431,6 @@ export class PaystackProvider implements PaymentProviderInterface {
 
       // Re-throw if it's not a currency error or if we're already using KES
       throw error
-    }
-
-    let status: PaymentStatus = "pending"
-    if (response.status === "success") {
-      status = "success"
-    } else if (response.status === "pending") {
-      status = "pending"
-    } else {
-      status = "failed"
-    }
-
-    return {
-      reference: response.reference,
-      status,
-      metadata: {
-        ...response,
-        phone,
-      },
     }
   }
 

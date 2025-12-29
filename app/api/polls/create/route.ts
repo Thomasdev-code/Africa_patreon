@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import type { CreatePollInput } from "@/lib/types"
+import { parseMembershipTiers } from "@/lib/utils"
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const tiers = profile.tiers as { name: string; price: number }[]
+      const tiers = parseMembershipTiers(profile.tiers)
       const tierExists = tiers.some((t) => t.name === body.tierName)
       if (!tierExists) {
         return NextResponse.json(

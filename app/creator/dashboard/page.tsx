@@ -498,7 +498,9 @@ export default function CreatorDashboard() {
                     }
                     tiers={profile.tiers}
                     onSubmit={
-                      editingPostId ? handleUpdatePost : handleCreatePost
+                      editingPostId 
+                        ? (data: CreatePostInput | UpdatePostInput) => handleUpdatePost(data as UpdatePostInput)
+                        : (data: CreatePostInput | UpdatePostInput) => handleCreatePost(data as CreatePostInput)
                     }
                     submitLabel={editingPostId ? "Update Post" : "Create Post"}
                   />

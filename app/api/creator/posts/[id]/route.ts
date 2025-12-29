@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import type { UpdatePostInput } from "@/lib/types"
+import { parseMembershipTiers } from "@/lib/utils"
 
 export async function PUT(
   req: NextRequest,
@@ -47,10 +48,7 @@ export async function PUT(
       })
 
       if (creatorProfile) {
-        const tiers = creatorProfile.tiers as Array<{
-          name: string
-          price: number
-        }>
+        const tiers = parseMembershipTiers(creatorProfile.tiers)
         const tierExists = tiers.some((tier) => tier.name === body.tierName)
 
         if (!tierExists) {
@@ -105,7 +103,7 @@ export async function PUT(
           mediaUrl: body.mediaUrl?.trim() || null,
         }),
         ...(body.isPPV !== undefined && { isPPV: body.isPPV }),
-        ...(body.isPPV !== undefined && body.isPPV && body.ppvPrice !== undefined && {
+        ...(body.isPPV !== undefined && body.isPPV && body.ppvPrice !== undefined && body.ppvPrice !== null && body.ppvPrice > 0 && {
           ppvPrice: Math.round(body.ppvPrice * 100), // Convert to cents
         }),
         ...(body.isPPV !== undefined && body.isPPV && body.ppvCurrency !== undefined && {

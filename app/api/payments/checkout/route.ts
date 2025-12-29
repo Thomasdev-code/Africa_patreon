@@ -11,7 +11,7 @@ const checkoutSchema = z.object({
   amount: z.number().optional(),
   currency: z.string().default("USD"),
   country: z.string().optional(),
-  providerPreference: z.array(z.enum(["STRIPE", "PAYSTACK", "FLUTTERWAVE"])).optional(),
+  providerPreference: z.array(z.enum(["PAYSTACK"])).optional(),
 })
 
 export async function POST(req: NextRequest) {
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Start payment with automatic provider selection and fallback
+    // Start payment with PAYSTACK (only supported provider)
     const result = await startOneTimePayment({
       amount: tierPrice,
       currency: validated.currency,
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       tierId: tier.id,
       tierName: tier.name,
       country: validated.country,
-      providerPreference: validated.providerPreference,
+      providerPreference: validated.providerPreference ? ["PAYSTACK"] : undefined,
       metadata: {
         email: session.user.email,
         tierId: tier.id,
@@ -133,9 +133,7 @@ export async function POST(req: NextRequest) {
       provider: result.provider,
       reference: result.reference,
       redirectUrl: result.redirectUrl,
-      clientSecret: result.clientSecret,
       accessCode: result.accessCode,
-      flwRef: result.flwRef,
       metadata: result.metadata,
     })
   } catch (error: any) {

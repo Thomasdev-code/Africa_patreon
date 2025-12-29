@@ -18,7 +18,6 @@ export const providers = {
     name: "paystack",
     createPayment: paystackSDK.createPayment.bind(paystackSDK),
     verifyWebhook: paystackSDK.handleWebhook.bind(paystackSDK),
-    chargeSubscription: paystackSDK.createSubscription?.bind(paystackSDK),
   },
 }
 

@@ -368,7 +368,7 @@ export default function CreatorPollsPage() {
                 </div>
                 <div className="text-sm text-gray-600">
                   {poll.options?.length || 0} options •{" "}
-                  {poll.totalVotes || 0} votes • Created{" "}
+                  {(poll.options?.reduce((sum, opt) => sum + (opt.voteCount || 0), 0) || 0)} votes • Created{" "}
                   {new Date(poll.createdAt).toLocaleDateString()}
                 </div>
               </div>

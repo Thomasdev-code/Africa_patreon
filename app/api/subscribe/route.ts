@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { startSubscription, getProviderNameForCountry } from "@/lib/payments/payment-router"
-import type { CreateSubscriptionInput, PaymentProvider } from "@/lib/types"
+import { startSubscription } from "@/lib/payments/payment-router"
+import type { CreateSubscriptionInput } from "@/lib/types"
+import type { PaymentProvider } from "@/lib/payments/types"
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,10 +21,9 @@ export async function POST(req: NextRequest) {
     }
 
     const body: CreateSubscriptionInput & { 
-      paymentProvider?: PaymentProvider
       country?: string
     } = await req.json()
-    const { creatorId, tierName, tierPrice, paymentProvider, country } = body
+    const { creatorId, tierName, tierPrice, country } = body
 
     // Validate input
     if (!creatorId || !tierName || !tierPrice || tierPrice <= 0) {
@@ -111,13 +111,13 @@ export async function POST(req: NextRequest) {
         tierName: tierName,
         tierPrice: tierPrice,
         status: "pending",
-        paymentProvider: paymentProvider,
+        paymentProvider: "PAYSTACK", // Only PAYSTACK is supported
         referralId: referralId,
       },
     })
 
-    // Determine provider
-    const finalProvider: PaymentProvider = paymentProvider || getProviderNameForCountry(country || "US")
+    // Only PAYSTACK is supported
+    const finalProvider: PaymentProvider = "PAYSTACK"
 
     // Create subscription payment
     const paymentResult = await startSubscription({
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
       amount: tierPrice,
       currency: "KES", // Using KES for Paystack
       country: country,
-      providerPreference: finalProvider ? [finalProvider] : undefined,
+      providerPreference: ["PAYSTACK"], // Only PAYSTACK is supported
       metadata: {
         subscriptionId: subscription.id,
         creatorUsername: creator.creatorProfile.username,
@@ -164,9 +164,6 @@ export async function POST(req: NextRequest) {
       redirectUrl: paymentResult.redirectUrl,
       reference: paymentResult.reference,
       provider: paymentResult.provider,
-      clientSecret: paymentResult.clientSecret,
-      accessCode: paymentResult.accessCode,
-      flwRef: paymentResult.flwRef,
     })
   } catch (error) {
     console.error("Subscribe error:", error)

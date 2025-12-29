@@ -154,26 +154,15 @@ export async function routePayout(
   error?: string
 }> {
   try {
-    const result = await paystackSDK.createPayout({
-      amount: request.amount,
-      currency: request.currency,
-      recipientCode: request.accountDetails.recipientCode || "",
-      metadata: request.metadata,
-    })
-
-    return {
-      success: result.status === "success",
-      provider: "PAYSTACK",
-      payoutId: result.payoutId,
-      status: result.status,
-      metadata: result.metadata,
-    }
+    // Paystack payout implementation not yet available
+    // TODO: Implement Paystack transfer/recipient API for payouts
+    throw new Error("Paystack payout not yet implemented. Please use manual payout methods.")
   } catch (error: any) {
     return {
       success: false,
-      provider: "PAYSTACK",
+      provider: "PAYSTACK" as PaymentProvider,
       payoutId: "",
-      status: "failed",
+      status: "failed" as PaymentStatus,
       error: error.message || "Failed to process payout",
     }
   }

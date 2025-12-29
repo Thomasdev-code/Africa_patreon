@@ -77,9 +77,11 @@ export async function renewSubscription(
 
   try {
     // Initialize a new Paystack payment for renewal
+    // Use currency from payment if available, otherwise default to KES
+    const currency = subscription.payment?.currency || "KES"
     const result = await paystackSDK.initializePayment({
       amount: subscription.tierPrice,
-      currency: subscription.currency || "NGN",
+      currency: currency,
       userId: subscription.fanId,
       creatorId: subscription.creatorId,
       tierName: subscription.tierName,
@@ -100,7 +102,7 @@ export async function renewSubscription(
         provider: "PAYSTACK",
         reference: result.reference,
         amount: Math.round(subscription.tierPrice * 100),
-        currency: subscription.currency || "NGN",
+        currency: currency,
         status: "pending",
         metadata: {
           subscriptionId: subscription.id,

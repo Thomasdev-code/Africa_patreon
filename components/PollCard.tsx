@@ -25,9 +25,9 @@ export default function PollCard({
   const [isVoting, setIsVoting] = useState(false)
   const [results, setResults] = useState<any>(null)
   const [isLoadingResults, setIsLoadingResults] = useState(false)
-  const [hasVoted, setHasVoted] = useState(poll.hasVoted || false)
+  const [hasVoted, setHasVoted] = useState(poll.userVote?.hasVoted || false)
 
-  const isEnded = poll.isEnded || (poll.endsAt && new Date(poll.endsAt) < new Date())
+  const isEnded = poll.endsAt ? new Date(poll.endsAt) < new Date() : false
   const showResults = hasVoted || !poll.hideResultsUntilEnd || isEnded
 
   useEffect(() => {
@@ -152,7 +152,7 @@ export default function PollCard({
                 onChange={(e) => setSelectedOption(e.target.value)}
                 className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
               />
-              <span className="text-gray-900 flex-1">{option.text}</span>
+              <span className="text-gray-900 flex-1">{option.label}</span>
             </label>
           ))}
           <button
@@ -184,7 +184,7 @@ export default function PollCard({
                 <div key={option.id} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
                     <span className={`font-medium ${isUserVote ? "text-blue-600" : "text-gray-900"}`}>
-                      {option.text}
+                      {option.label}
                       {isUserVote && " ✓"}
                     </span>
                     <span className="text-gray-600">

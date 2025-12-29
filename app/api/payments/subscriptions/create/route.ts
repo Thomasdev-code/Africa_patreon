@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
       tierName: tier.name,
       currency: finalCurrency,
       provider: "PAYSTACK",
-      amountInMinor,
+      amountMinor,
       platformFee,
       creatorEarnings,
       country: normalizedCountry,
@@ -179,7 +179,6 @@ export async function POST(req: NextRequest) {
       provider: result.provider,
       reference: result.reference,
       redirectUrl: result.redirectUrl,
-      clientSecret: result.clientSecret,
       metadata: result.metadata,
     })
   } catch (error: any) {

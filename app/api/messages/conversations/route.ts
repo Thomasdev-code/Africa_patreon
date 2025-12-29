@@ -87,13 +87,13 @@ export async function GET(req: NextRequest) {
             id: msg.sender.id,
             email: msg.sender.email,
             role: msg.sender.role as "fan" | "creator" | "admin",
-            creatorProfile: msg.sender.creatorProfile,
+            creatorProfile: msg.sender.creatorProfile ?? undefined,
           },
           receiver: {
             id: msg.receiver.id,
             email: msg.receiver.email,
             role: msg.receiver.role as "fan" | "creator" | "admin",
-            creatorProfile: msg.receiver.creatorProfile,
+            creatorProfile: msg.receiver.creatorProfile ?? undefined,
           },
         }
       }

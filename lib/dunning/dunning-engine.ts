@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma"
-import { getPaymentProvider, type PaymentProvider } from "@/lib/payments"
+import { verifyPayment, type PaymentProvider } from "@/lib/payments"
 import { notifyNewSubscription } from "@/lib/notifications"
 
 export interface DunningSchedule {
@@ -35,15 +35,7 @@ export async function processDunningAttempts(): Promise<void> {
       },
     },
     include: {
-      payment: {
-        where: {
-          status: "failed",
-        },
-        orderBy: {
-          createdAt: "desc",
-        },
-        take: 1,
-      },
+      payment: true,
       dunningAttempts: {
         orderBy: {
           attemptNumber: "desc",
@@ -56,7 +48,7 @@ export async function processDunningAttempts(): Promise<void> {
   for (const subscription of subscriptions) {
     // Check if we need to create a new dunning attempt
     const lastAttempt = subscription.dunningAttempts[0]
-    const lastPayment = subscription.payment[0]
+    const lastPayment = subscription.payment
 
     if (!lastPayment || lastPayment.status !== "failed") {
       continue
@@ -128,16 +120,9 @@ async function attemptPaymentRetry(
         },
       })
 
-    // Get payment provider
-    const provider = (subscription.paymentProvider ||
-      lastPayment.provider) as PaymentProvider
-
-    const paymentProvider = getPaymentProvider(provider)
-
     // Verify payment (this will check if payment succeeded)
-    const verification = await paymentProvider.verifyPayment(
-      lastPayment.reference
-    )
+    // Always use PAYSTACK since we only support PAYSTACK
+    const verification = await verifyPayment("PAYSTACK", lastPayment.reference)
 
     if (verification.status === "success") {
       // Payment succeeded

@@ -203,6 +203,7 @@ export async function POST(req: NextRequest) {
       status: "pending",
       userId: session.user.id,
       creatorId: post.creatorId,
+      tierId: "", // PPV purchases don't have a tier
       countryCode: normalizedCountry,
       metadata: {
         postId: postId,

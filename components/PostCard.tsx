@@ -104,7 +104,7 @@ export default function PostCard({
           } else {
             // Fallback to post currency
             setPpvPriceInfo({
-              price: post.ppvPrice,
+              price: post.ppvPrice || 0,
               currency: post.ppvCurrency || "USD",
             })
           }
@@ -112,7 +112,7 @@ export default function PostCard({
         .catch(() => {
           // Fallback to post currency
           setPpvPriceInfo({
-            price: post.ppvPrice,
+            price: post.ppvPrice || 0,
             currency: post.ppvCurrency || "USD",
           })
         })
@@ -178,13 +178,13 @@ export default function PostCard({
     
     if (!mediaUrl) return null
 
-    if (post.mediaType === "image" || post.mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+    if (post.mediaType === "image" || (mediaUrl && mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i))) {
       return (
         <div className="w-full h-64 relative">
           {isLocked ? (
             <div className="relative w-full h-full">
               <Image
-                src={post.mediaUrl}
+                src={mediaUrl}
                 alt={post.title}
                 fill
                 className="object-cover blur-md"
@@ -229,13 +229,13 @@ export default function PostCard({
       )
     }
 
-    if (post.mediaType === "video" || post.mediaUrl.match(/\.(mp4|webm|mov)$/i)) {
+    if (post.mediaType === "video" || (mediaUrl && mediaUrl.match(/\.(mp4|webm|mov)$/i))) {
       return (
         <div className="w-full relative">
           {isLocked ? (
             <div className="relative w-full">
               <video
-                src={post.mediaUrl}
+                src={mediaUrl}
                 className="w-full max-h-96 blur-md pointer-events-none"
                 muted
                 loop
@@ -282,13 +282,13 @@ export default function PostCard({
       )
     }
 
-    if (post.mediaType === "audio" || post.mediaUrl.match(/\.(mp3|wav|aac|m4a|ogg|flac)$/i)) {
+    if (post.mediaType === "audio" || (mediaUrl && mediaUrl.match(/\.(mp3|wav|aac|m4a|ogg|flac)$/i))) {
       return (
         <div className="w-full p-4 bg-gray-50 rounded-lg relative">
           {isLocked ? (
             <div className="relative">
               <div className="blur-sm pointer-events-none">
-                <audio src={post.mediaUrl} controls className="w-full opacity-50">
+                <audio src={mediaUrl} controls className="w-full opacity-50">
                   Your browser does not support the audio tag.
                 </audio>
               </div>

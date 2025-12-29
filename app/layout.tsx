@@ -4,7 +4,7 @@ import "./globals.css"
 import { Providers } from "./providers"
 import { Navbar } from "@/components/Navbar"
 import { PublicNav } from "@/components/PublicNav"
-import { Footer } from "@/components/Footer"
+import Footer from "@/components/Footer"
 import ContentProtection from "@/components/ContentProtection"
 
 const inter = Inter({ subsets: ["latin"] })

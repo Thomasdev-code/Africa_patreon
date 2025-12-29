@@ -81,42 +81,16 @@ export async function POST(req: NextRequest) {
       ? amount
       : amount * (validated.currency === "USD" ? 130 : validated.currency === "NGN" ? 130/1500 : validated.currency === "GHS" ? 130/12 : validated.currency === "ZAR" ? 130/18.5 : 130)
 
-    // Fraud checks
-    const ipAddress = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || ""
-    const fraudCheck = await performFraudChecks({
-      userId: session.user.id,
-      creatorId: validated.creatorId,
-      amount: convertedAmount,
-      currency: finalCurrency,
-      provider: validated.provider || "PAYSTACK",
-      phoneNumber: validated.phoneNumber,
-      ipAddress,
-    })
-
-    if (!fraudCheck.allowed) {
-      return NextResponse.json(
-        { error: fraudCheck.reason || "Payment blocked by fraud check" },
-        { status: 403, headers: corsHeaders }
-      )
-    }
-
-    // Calculate tax
+    // Calculate tax (needed for both MPESA and PAYSTACK paths)
     const taxCalculation = normalizedCountry
       ? calculateTax(convertedAmount, normalizedCountry)
       : { taxRate: 0, taxAmount: 0, totalAmount: convertedAmount, countryCode: "", taxType: "NONE" }
-    
-    // Defensive logging
-    console.info("[MOBILE_PAY_INITIALIZE]", {
-      userId: session.user.id,
-      creatorId: validated.creatorId,
-      currency: finalCurrency,
-      provider: validated.provider || "PAYSTACK",
-      amountInMinor: Math.round(taxCalculation.totalAmount * 100),
-      country: normalizedCountry,
-    })
 
-    // Handle M-Pesa separately
-    if (validated.provider === "MPESA") {
+    // Narrow provider type and handle MPESA early
+    const provider = validated.provider ?? "PAYSTACK"
+    
+    // Handle M-Pesa separately (before fraud checks)
+    if (provider === "MPESA") {
       if (!validated.phoneNumber) {
         return NextResponse.json(
           { error: "Phone number required for M-Pesa" },
@@ -186,6 +160,42 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    // Fraud checks for PAYSTACK (after narrowing provider type)
+    if (provider !== "PAYSTACK") {
+      return NextResponse.json(
+        { error: "Invalid provider. Only PAYSTACK is supported after MPESA handling." },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    const ipAddress = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip") || ""
+    const fraudCheck = await performFraudChecks({
+      userId: session.user.id,
+      creatorId: validated.creatorId,
+      amount: convertedAmount,
+      currency: finalCurrency,
+      provider: provider,
+      phoneNumber: validated.phoneNumber,
+      ipAddress,
+    })
+
+    if (!fraudCheck.allowed) {
+      return NextResponse.json(
+        { error: fraudCheck.reason || "Payment blocked by fraud check" },
+        { status: 403, headers: corsHeaders }
+      )
+    }
+
+    // Defensive logging
+    console.info("[MOBILE_PAY_INITIALIZE]", {
+      userId: session.user.id,
+      creatorId: validated.creatorId,
+      currency: finalCurrency,
+      provider: provider,
+      amountInMinor: Math.round(taxCalculation.totalAmount * 100),
+      country: normalizedCountry,
+    })
+
     // Regular payment flow
     const paymentResult = await startOneTimePayment({
       amount: taxCalculation.totalAmount,
@@ -195,7 +205,7 @@ export async function POST(req: NextRequest) {
       tierId: tier.id,
       tierName: tier.name,
       country: normalizedCountry,
-      providerPreference: validated.provider ? [validated.provider] : undefined,
+      providerPreference: provider === "PAYSTACK" ? ["PAYSTACK"] : undefined,
       metadata: {
         email: session.user.email,
         platform: validated.platform,
@@ -242,18 +252,10 @@ export async function POST(req: NextRequest) {
       reference: paymentResult.reference,
     }
 
-    // Provider-specific fields
-    if (paymentResult.provider === "STRIPE" && paymentResult.clientSecret) {
-      response.client_secret = paymentResult.clientSecret
-      response.payment_intent_id = paymentResult.reference
-    } else if (paymentResult.provider === "PAYSTACK") {
+    // Provider-specific fields (PAYSTACK only)
+    if (paymentResult.provider === "PAYSTACK") {
       response.authorization_url = paymentResult.redirectUrl
       response.access_code = paymentResult.accessCode
-    } else if (paymentResult.provider === "FLUTTERWAVE") {
-      response.link = paymentResult.redirectUrl
-      response.flw_ref = paymentResult.flwRef
-    } else {
-      response.redirect_url = paymentResult.redirectUrl
     }
 
     return NextResponse.json(response, { headers: corsHeaders })

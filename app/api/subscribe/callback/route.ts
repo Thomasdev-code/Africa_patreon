@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { verifyPayment } from "@/lib/payments"
-import type { PaymentProvider } from "@/lib/types"
+import type { PaymentProvider } from "@/lib/payments/types"
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-    const provider = searchParams.get("provider") as PaymentProvider
+    const providerParam = searchParams.get("provider")
     const transactionId = searchParams.get("transaction_id")
     const reference = searchParams.get("reference") || searchParams.get("tx_ref")
     const sessionId = searchParams.get("session_id")
 
-    if (!provider) {
+    // Only PAYSTACK is supported
+    if (!providerParam || providerParam.toUpperCase() !== "PAYSTACK") {
       return NextResponse.redirect(
         new URL("/?error=invalid_payment_provider", req.url)
       )
     }
+
+    const provider: PaymentProvider = "PAYSTACK"
 
     let paymentReference = reference || transactionId || sessionId
 
@@ -39,8 +42,8 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    // Verify payment
-    const verification = await verifyPayment(provider, paymentReference)
+    // Verify payment (only PAYSTACK supported)
+    const verification = await verifyPayment("PAYSTACK", paymentReference)
 
     if (verification.status === "success") {
       // Update subscription to active

@@ -116,7 +116,7 @@ export async function GET(req: NextRequest) {
           where: {
             fanId: session.user.id,
             creatorId: post.creatorId,
-            tierName: post.tierName,
+            tierName: post.tierName ?? undefined,
             status: "active",
           },
         })

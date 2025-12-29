@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import type { PostPreview } from "@/lib/types"
+import { parseMediaType } from "@/lib/utils"
 
 export async function GET(req: NextRequest) {
   try {
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
           id: post.id,
           title: post.title,
           content: post.content,
-          mediaType: post.mediaType,
+          mediaType: parseMediaType(post.mediaType),
           mediaUrl: post.mediaUrl,
           tierName: post.tierName,
           isLocked: isLocked,

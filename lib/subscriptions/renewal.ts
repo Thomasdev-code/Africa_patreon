@@ -52,8 +52,8 @@ export async function renewSubscription(
       return { success: false, error: "Payment provider not set" }
     }
 
-    // Get payment provider
-    const paymentProvider = getPaymentProvider(provider)
+    // Get payment provider (always PAYSTACK)
+    const paymentProvider = getPaymentProvider()
 
     // Create renewal payment based on provider
     let paymentResult: {
@@ -62,64 +62,29 @@ export async function renewSubscription(
       metadata?: Record<string, any>
     }
 
-    switch (provider) {
-      case "STRIPE":
-        // Stripe handles renewals automatically via subscriptions
-        // This would typically be handled by Stripe webhooks
-        // For manual renewal, we'd create a new payment intent
-        return {
-          success: false,
-          error: "Stripe renewals are handled automatically via webhooks",
-        }
+    // Only PAYSTACK is supported
+    if (provider !== "PAYSTACK") {
+      return { success: false, error: "Unsupported payment provider. Only PAYSTACK is supported." }
+    }
 
-      case "PAYSTACK":
-        // Paystack: Charge authorization
-        // This requires a saved authorization code from initial payment
-        const paystackAuth = subscription.payment?.metadata as any
-        if (!paystackAuth?.authorization?.authorization_code) {
-          return {
-            success: false,
-            error: "Paystack authorization code not found",
-          }
-        }
+    // Paystack: Charge authorization
+    // This requires a saved authorization code from initial payment
+    const paystackAuth = subscription.payment?.metadata as any
+    if (!paystackAuth?.authorization?.authorization_code) {
+      return {
+        success: false,
+        error: "Paystack authorization code not found",
+      }
+    }
 
-        // In production, call Paystack charge authorization API
-        // For now, create a pending payment that will be verified via webhook
-        paymentResult = {
-          reference: `RENEW_${Date.now()}_${subscriptionId}`,
-          metadata: {
-            type: "renewal",
-            authorizationCode: paystackAuth.authorization.authorization_code,
-          },
-        }
-        break
-
-      case "FLUTTERWAVE":
-        // Flutterwave: Tokenized card charge
-        const flutterwaveToken = subscription.payment?.metadata as any
-        if (!flutterwaveToken?.cardToken) {
-          return {
-            success: false,
-            error: "Flutterwave card token not found",
-          }
-        }
-
-        // In production, call Flutterwave charge token API
-        paymentResult = {
-          reference: `RENEW_${Date.now()}_${subscriptionId}`,
-          metadata: {
-            type: "renewal",
-            cardToken: flutterwaveToken.cardToken,
-          },
-        }
-        break
-
-      // M-Pesa renewals are handled via Flutterwave or Paystack
-      // If the original provider was M-Pesa (via Flutterwave/Paystack),
-      // use the same provider for renewal
-
-      default:
-        return { success: false, error: "Unsupported payment provider" }
+    // In production, call Paystack charge authorization API
+    // For now, create a pending payment that will be verified via webhook
+    paymentResult = {
+      reference: `RENEW_${Date.now()}_${subscriptionId}`,
+      metadata: {
+        type: "renewal",
+        authorizationCode: paystackAuth.authorization.authorization_code,
+      },
     }
 
     // Create renewal payment record

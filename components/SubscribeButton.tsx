@@ -51,7 +51,7 @@ export default function SubscribeButton({
       setIsLoadingPrice(true)
       try {
         // Call a new endpoint to get price info without creating payment
-        const res = await fetch(`/api/payments/price-info?tierId=${tier.id}&priceUSD=${tier.price}&country=${country || "US"}`)
+        const res = await fetch(`/api/payments/price-info?priceUSD=${tier.price}&country=${country || "US"}`)
         if (res.ok) {
           const data = await res.json()
           setPriceInfo(data)
@@ -64,7 +64,7 @@ export default function SubscribeButton({
     }
 
     fetchPriceInfo()
-  }, [tier.id, tier.price, country, isSubscribed])
+  }, [tier.price, country, isSubscribed])
 
   // Determine recommended provider based on country
   const getRecommendedProvider = (): PaymentProviderOption => {
@@ -110,7 +110,6 @@ export default function SubscribeButton({
         body: JSON.stringify({
           creatorId,
           tierName: tier.name,
-          tierId: tier.id,
           provider: apiProvider,
           country: country || "US",
         }),
@@ -226,7 +225,6 @@ export default function SubscribeButton({
       {showProviderModal && (
         <ProviderSelectModal
           creatorId={creatorId}
-          tierId={tier.id}
           tierName={tier.name}
           tierPrice={tier.price}
           recommendedProvider={getRecommendedProvider()}

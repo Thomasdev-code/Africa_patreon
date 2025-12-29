@@ -151,7 +151,15 @@ export async function POST(
     const post = await prisma.post.findUnique({
       where: { id: postId },
       include: {
-        creator: true,
+        creator: {
+          include: {
+            creatorProfile: {
+              select: {
+                username: true,
+              },
+            },
+          },
+        },
       },
     })
 

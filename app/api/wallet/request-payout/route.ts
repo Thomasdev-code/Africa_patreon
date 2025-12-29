@@ -3,6 +3,7 @@ import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { withdrawalGuard } from "@/lib/payment-guard"
 import { normalizeToUSD, type SupportedCurrency } from "@/lib/payments/currency"
+import type { PayoutHistory } from "@prisma/client"
 
 export async function POST(req: NextRequest) {
   try {
@@ -124,7 +125,7 @@ export async function GET(req: NextRequest) {
         frozen: wallet.frozen,
         frozenReason: wallet.frozenReason,
       },
-      payouts: wallet.payoutHistory.map((p) => ({
+      payouts: wallet.payoutHistory.map((p: PayoutHistory) => ({
         id: p.id,
         amount: p.amount,
         currency: p.currency,

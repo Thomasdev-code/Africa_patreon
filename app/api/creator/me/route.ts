@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import type { MembershipTier } from "@/lib/types"
+import { parseMembershipTiers } from "@/lib/utils"
 
 export async function GET(req: NextRequest) {
   try {
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       profile: {
         ...profile,
-        tiers: profile.tiers as MembershipTier[],
+        tiers: parseMembershipTiers(profile.tiers),
       },
     })
   } catch (error: any) {

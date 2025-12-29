@@ -8,6 +8,8 @@ declare module "next-auth" {
       email: string
       role: UserRole
       isOnboarded: boolean
+      isBanned: boolean
+      isApproved: boolean
     }
   }
 
@@ -16,6 +18,8 @@ declare module "next-auth" {
     email: string
     role: UserRole
     isOnboarded: boolean
+    isBanned: boolean
+    isApproved: boolean
   }
 }
 
@@ -24,6 +28,8 @@ declare module "next-auth/jwt" {
     id: string
     role: UserRole
     isOnboarded: boolean
+    isBanned: boolean
+    isApproved: boolean
   }
 }
 

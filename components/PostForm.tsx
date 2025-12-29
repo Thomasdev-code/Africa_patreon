@@ -12,6 +12,9 @@ interface PostFormProps {
     mediaUrl?: string | null
     tierName?: string | null
     isPublished?: boolean
+    isPPV?: boolean
+    ppvPrice?: number | null
+    ppvCurrency?: string | null
   }
   tiers?: MembershipTier[]
   onSubmit: (data: CreatePostInput | UpdatePostInput) => Promise<void>

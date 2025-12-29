@@ -10,16 +10,19 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials: Record<"email" | "password", string> | undefined) {
-        if (!credentials?.email || !credentials?.password) {
+      async authorize(credentials: Partial<Record<"email" | "password", unknown>>, request: Request) {
+        if (!credentials?.email || !credentials?.password || typeof credentials.email !== "string" || typeof credentials.password !== "string") {
           return null
         }
+        
+        const email = credentials.email
+        const password = credentials.password
 
         // Dynamic import Prisma to avoid Edge Runtime issues
         // This only runs in Node.js runtime during authentication
         const { prisma } = await import("@/lib/prisma")
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email },
+          where: { email: email },
         })
 
         if (!user) {
@@ -27,7 +30,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const isPasswordValid = await bcrypt.compare(
-          credentials.password,
+          password,
           user.password
         )
 

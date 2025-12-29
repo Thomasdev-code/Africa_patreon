@@ -272,26 +272,16 @@ export async function POST(req: NextRequest) {
       })
     )
 
-    // Referrals (server-side)
-    const referralCredits = await calculateReferralCredits({
-      userId: session.user.id,
-      creatorId: creatorId,
-      amount: totalAmount,
-    })
-    if (referralCredits?.credits && referralCredits.referralId) {
-      await awardReferralCredits({
-        referralId: referralCredits.referralId,
-        amount: referralCredits.credits,
-        type: "payment",
-      })
-    }
+    // Referrals (server-side) - handled after subscription is created and linked
+    // Referral credits are typically processed via webhook when payment is confirmed
+    // This ensures the referral is properly linked to the subscription
 
     // Notify creator (async best-effort)
-    notifyNewSubscription({
-      creatorId: creatorId,
-      fanId: session.user.id,
-      tierName: finalTierName,
-    }).catch(() => {})
+    notifyNewSubscription(
+      creatorId,
+      session.user.email || "Unknown",
+      finalTierName
+    ).catch(() => {})
 
     return NextResponse.json({
       success: true,

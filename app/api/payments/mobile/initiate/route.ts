@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import {
-  getPaymentProvider,
-  getProviderNameForCountry,
   normalizeCountry,
   type PaymentProvider,
 } from "@/lib/payments"
+import { paystackSDK } from "@/lib/payments/payment-providers"
 import { calculateTax } from "@/lib/tax/tax-engine"
 import { resolvePaystackCurrency, type PaystackCurrency } from "@/lib/payments/currency"
 import { calculatePlatformFee, calculateCreatorPayout } from "@/app/config/platform"
@@ -100,9 +99,7 @@ export async function POST(req: NextRequest) {
       country: normalizedCountry,
     })
 
-    const paymentProvider = getPaymentProvider()
-
-    const paymentResult = await paymentProvider.createPayment(
+    const paymentResult = await paystackSDK.createPayment(
       convertedAmount, // Use converted amount
       finalCurrency,
       session.user.id,
@@ -110,7 +107,6 @@ export async function POST(req: NextRequest) {
       finalTierName,
       {
         email: session.user.email || undefined,
-        name: session.user.name || undefined,
         platform,
         platformFee,
         creatorEarnings,

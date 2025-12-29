@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useParams, useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Avatar from "@/components/Avatar"
@@ -13,7 +13,7 @@ import PollCard from "@/components/PollCard"
 import SearchBar from "@/components/SearchBar"
 import type { CreatorProfile, PostPreview, PublicPoll } from "@/lib/types"
 
-export default function CreatorPublicPage() {
+function CreatorPublicContent() {
   const params = useParams()
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -380,5 +380,19 @@ export default function CreatorPublicPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function CreatorPublicPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <CreatorPublicContent />
+    </Suspense>
   )
 }

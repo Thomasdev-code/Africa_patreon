@@ -4,19 +4,23 @@ import { processPaymentEvent } from "@/lib/payments/webhook-handler"
 
 /**
  * M-Pesa callback handler
- * Handles callbacks from Flutterwave and Paystack M-Pesa payments
+ * Handles callbacks from Paystack M-Pesa payments
  */
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const provider = req.headers.get("x-provider") || "FLUTTERWAVE" // Default to Flutterwave
+    const providerHeader = req.headers.get("x-provider") || "PAYSTACK" // Default to Paystack
 
-    if (provider !== "FLUTTERWAVE" && provider !== "PAYSTACK") {
+    // Only PAYSTACK is supported
+    if (providerHeader !== "PAYSTACK") {
       return NextResponse.json(
-        { error: "Invalid provider" },
+        { error: "Invalid provider. Only PAYSTACK is supported." },
         { status: 400 }
       )
     }
+
+    // Narrow provider type to PAYSTACK
+    const provider: "PAYSTACK" = "PAYSTACK"
 
     // Process webhook using unified handler
     const webhookResult = await processWebhook(
@@ -33,7 +37,7 @@ export async function POST(req: NextRequest) {
       amount: webhookResult.amount,
       currency: webhookResult.currency,
       metadata: webhookResult.metadata,
-      provider: provider,
+      provider: "PAYSTACK", // Always PAYSTACK
     })
 
     // Return success response

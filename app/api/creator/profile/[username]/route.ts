@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
-import type { MembershipTier } from "@/lib/types"
+import { parseMembershipTiers } from "@/lib/utils"
 
 export async function GET(
   req: NextRequest,
@@ -53,7 +53,7 @@ export async function GET(
         bio: profile.bio,
         avatarUrl: profile.avatarUrl,
         bannerUrl: profile.bannerUrl,
-        tiers: profile.tiers as MembershipTier[],
+        tiers: parseMembershipTiers(profile.tiers),
         createdAt: profile.createdAt,
         updatedAt: profile.updatedAt,
         user: {

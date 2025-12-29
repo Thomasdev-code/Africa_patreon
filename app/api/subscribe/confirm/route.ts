@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { verifyPayment } from "@/lib/payments"
 import { notifyNewSubscription } from "@/lib/notifications"
 import { calculateReferralCredits, awardReferralCredits } from "@/lib/referrals"
-import type { PaymentProvider } from "@/lib/types"
+import type { PaymentProvider } from "@/lib/payments/types"
 
 export async function POST(req: NextRequest) {
   try {
@@ -49,12 +49,26 @@ export async function POST(req: NextRequest) {
     } else if (paymentStatus === "failed" || paymentStatus === "cancelled") {
       verifiedStatus = "failed"
     } else if (provider && reference) {
-      // Verify payment with provider
+      // Verify payment with provider (only PAYSTACK supported)
+      // Narrow provider type to ensure only PAYSTACK is used
+      if (provider.toUpperCase() !== "PAYSTACK") {
+        return NextResponse.json(
+          { error: "Only PAYSTACK provider is supported" },
+          { status: 400 }
+        )
+      }
       const verification = await verifyPayment(
-        provider as PaymentProvider,
+        "PAYSTACK",
         reference
       )
-      verifiedStatus = verification.status
+      // Map PaymentStatus to verifiedStatus type (exclude "cancelled")
+      if (verification.status === "success") {
+        verifiedStatus = "success"
+      } else if (verification.status === "failed" || verification.status === "cancelled") {
+        verifiedStatus = "failed"
+      } else {
+        verifiedStatus = "pending"
+      }
     }
 
     // Update subscription based on verification

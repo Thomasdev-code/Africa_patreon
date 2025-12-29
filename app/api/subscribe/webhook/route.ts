@@ -3,62 +3,42 @@ import { prisma } from "@/lib/prisma"
 import { verifyPayment } from "@/lib/payments"
 import { notifyNewSubscription } from "@/lib/notifications"
 import { calculateReferralCredits, awardReferralCredits } from "@/lib/referrals"
-import type { PaymentProvider } from "@/lib/types"
+import type { PaymentProvider } from "@/lib/payments/types"
 
 /**
- * Webhook endpoint for payment providers (Paystack, Flutterwave, Stripe)
- * This endpoint should be configured in your payment provider dashboard
+ * Webhook endpoint for Paystack payments
+ * This endpoint should be configured in your Paystack dashboard
  */
 export async function POST(req: NextRequest) {
   try {
-    // Get provider from header or body
-    const provider = (req.headers.get("x-payment-provider") ||
-      req.headers.get("x-paystack-signature") ? "paystack" :
-      req.headers.get("x-flutterwave-signature") ? "flutterwave" :
-      "stripe") as PaymentProvider
+    // Only PAYSTACK is supported
+    const providerHeader = req.headers.get("x-payment-provider") || 
+      (req.headers.get("x-paystack-signature") ? "PAYSTACK" : null)
 
+    if (!providerHeader || providerHeader.toUpperCase() !== "PAYSTACK") {
+      return NextResponse.json(
+        { error: "Only PAYSTACK provider is supported" },
+        { status: 400 }
+      )
+    }
+
+    const provider: PaymentProvider = "PAYSTACK"
     const body = await req.json()
 
-    // Extract payment reference based on provider
+    // Extract payment reference from Paystack webhook format
     let paymentReference: string | null = null
     let transactionStatus: string | null = null
 
-    if (provider === "paystack") {
-      // Paystack webhook format
-      const event = body.event
-      const data = body.data
+    // Paystack webhook format
+    const event = body.event
+    const data = body.data
 
-      if (event === "charge.success") {
-        paymentReference = data.reference
-        transactionStatus = "successful"
-      } else if (event === "charge.failed") {
-        paymentReference = data.reference
-        transactionStatus = "failed"
-      }
-    } else if (provider === "flutterwave") {
-      // Flutterwave webhook format
-      const event = body.event
-      const data = body.data
-
-      if (event === "charge.completed" && data.status === "successful") {
-        paymentReference = data.tx_ref || data.flw_ref
-        transactionStatus = "successful"
-      } else if (event === "charge.completed" && data.status === "failed") {
-        paymentReference = data.tx_ref || data.flw_ref
-        transactionStatus = "failed"
-      }
-    } else if (provider === "stripe") {
-      // Stripe webhook format
-      const event = body.type
-      const data = body.data.object
-
-      if (event === "payment_intent.succeeded") {
-        paymentReference = data.id
-        transactionStatus = "successful"
-      } else if (event === "payment_intent.payment_failed") {
-        paymentReference = data.id
-        transactionStatus = "failed"
-      }
+    if (event === "charge.success") {
+      paymentReference = data.reference
+      transactionStatus = "successful"
+    } else if (event === "charge.failed") {
+      paymentReference = data.reference
+      transactionStatus = "failed"
     }
 
     if (!paymentReference) {
@@ -72,7 +52,7 @@ export async function POST(req: NextRequest) {
     const subscription = await prisma.subscription.findFirst({
       where: {
         paymentReference: paymentReference,
-        paymentProvider: provider,
+        paymentProvider: "PAYSTACK",
       },
       include: {
         fan: true,
@@ -88,8 +68,8 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Verify payment with provider
-    const verification = await verifyPayment(provider, paymentReference)
+    // Verify payment with provider (only PAYSTACK supported)
+    const verification = await verifyPayment("PAYSTACK", paymentReference)
 
     if (verification.status === "success" && subscription.status !== "active") {
       // Activate subscription

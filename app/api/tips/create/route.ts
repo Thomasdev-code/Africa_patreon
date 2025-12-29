@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
       creatorId,
       currency: finalCurrency,
       provider: selectedProvider,
-      amountInMinor,
+      amountMinor,
       platformFee,
       creatorEarnings,
       country: normalizedCountry,

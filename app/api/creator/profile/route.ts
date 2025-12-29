@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import type { CreateCreatorProfileInput, MembershipTier } from "@/lib/types"
+import type { CreateCreatorProfileInput } from "@/lib/types"
+import { parseMembershipTiers, serializeMembershipTiers } from "@/lib/utils"
 
 export async function POST(req: NextRequest) {
   try {
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
         bio,
         avatarUrl: avatarUrl || null,
         bannerUrl: bannerUrl || null,
-        tiers: tiers as MembershipTier[],
+        tiers: serializeMembershipTiers(tiers),
       },
       create: {
         userId: session.user.id,
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest) {
         bio,
         avatarUrl: avatarUrl || null,
         bannerUrl: bannerUrl || null,
-        tiers: tiers as MembershipTier[],
+        tiers: serializeMembershipTiers(tiers),
       },
     })
 
@@ -103,7 +104,7 @@ export async function POST(req: NextRequest) {
         success: true,
         profile: {
           ...profile,
-          tiers: profile.tiers as MembershipTier[],
+          tiers: parseMembershipTiers(profile.tiers),
         },
       },
       { status: 200 }

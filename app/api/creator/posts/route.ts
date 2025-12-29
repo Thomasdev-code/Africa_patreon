@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import type { CreatePostInput } from "@/lib/types"
+import { parseMembershipTiers } from "@/lib/utils"
 
 export async function GET(req: NextRequest) {
   try {
@@ -120,7 +121,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      const tiers = creatorProfile.tiers as Array<{ name: string; price: number }>
+      const tiers = parseMembershipTiers(creatorProfile.tiers)
       const tierExists = tiers.some((tier) => tier.name === tierName)
 
       if (!tierExists) {
