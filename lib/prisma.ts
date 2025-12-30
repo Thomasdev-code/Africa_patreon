@@ -2,23 +2,10 @@ import { PrismaClient } from "@prisma/client"
 
 const globalForPrisma = global as unknown as { prisma: PrismaClient }
 
-// Validate DATABASE_URL before creating Prisma client
-const DATABASE_URL = process.env.DATABASE_URL
-
-if (!DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL environment variable is not set. Please configure it in your Vercel project settings."
-  )
-}
-
-if (!DATABASE_URL.startsWith("postgresql://") && !DATABASE_URL.startsWith("postgres://")) {
-  throw new Error(
-    `DATABASE_URL must start with "postgresql://" or "postgres://". Current value starts with: ${DATABASE_URL.substring(0, 20)}...`
-  )
-}
-
 // Standard Next.js safe singleton pattern
 // Reduced log level to minimize connection error noise (retry logic handles them)
+// Note: Prisma will validate DATABASE_URL at runtime when first used
+// We don't validate here to avoid build-time errors when env vars might not be available
 export const prisma =
   globalForPrisma.prisma ||
   new PrismaClient({
@@ -26,7 +13,7 @@ export const prisma =
     // Connection pool configuration for scalability
     datasources: {
       db: {
-        url: DATABASE_URL,
+        url: process.env.DATABASE_URL,
       },
     },
   })
