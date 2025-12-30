@@ -45,16 +45,36 @@ function SignupContent() {
         }),
       })
 
+      // Check if response is ok before parsing JSON
+      if (!res.ok) {
+        // Try to parse error message, but handle non-JSON responses
+        let errorMessage = "Signup failed"
+        try {
+          const errorData = await res.json()
+          errorMessage = errorData.error || errorMessage
+        } catch {
+          // If response is not JSON, use status text
+          errorMessage = res.statusText || errorMessage
+        }
+        setError(errorMessage)
+        setLoading(false)
+        return
+      }
+
+      // Parse JSON only if response is ok
       const data = await res.json()
 
-      if (!res.ok) {
+      // Verify we got a success response
+      if (!data.success) {
         setError(data.error || "Signup failed")
         setLoading(false)
         return
       }
 
       // Signup successful - redirect to login page
-      // Client-side redirect using router.push (no POST to /login)
+      // IMPORTANT: Client-side redirect using router.push (no POST to /login)
+      // This prevents any server-side redirects that would cause 307 errors
+      setLoading(false) // Reset loading state before navigation
       router.push("/login?signup=success")
     } catch (err) {
       console.error("Signup error:", err)

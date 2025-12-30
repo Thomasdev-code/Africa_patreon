@@ -4,7 +4,27 @@ import { prisma } from "@/lib/prisma"
 import { calculateReferralCredits, awardReferralCredits } from "@/lib/referrals"
 import type { UserRole } from "@/lib/types"
 
+// Explicitly handle OPTIONS for CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    },
+  })
+}
+
+// Only allow POST method - reject all others
 export async function POST(req: NextRequest) {
+  // Ensure this is a POST request (Next.js should handle this, but being explicit)
+  if (req.method !== "POST") {
+    return NextResponse.json(
+      { error: "Method not allowed" },
+      { status: 405 }
+    )
+  }
   try {
     const body = await req.json()
     const { email, password, role, referralCode } = body
