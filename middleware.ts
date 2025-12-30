@@ -6,6 +6,18 @@ export default auth((req) => {
   const { pathname } = req.nextUrl
   const session = req.auth
 
+  // Explicitly reject POST requests to /login
+  // Login must use NextAuth's signIn() function, not form POSTs
+  if (pathname === "/login" && req.method === "POST") {
+    return NextResponse.json(
+      { 
+        error: "Method not allowed",
+        message: "POST requests to /login are not allowed. Please use NextAuth signIn() at /api/auth/signin"
+      },
+      { status: 405 }
+    )
+  }
+
   // Public routes - NO authentication required
   const isPublicRoute =
     pathname === "/" ||

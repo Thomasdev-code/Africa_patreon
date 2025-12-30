@@ -119,7 +119,12 @@ function SignupContent() {
         </div>
 
         {/* Email & Password Form */}
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form 
+          onSubmit={handleSubmit} 
+          action="#" 
+          method="get"
+          className="flex flex-col gap-4"
+        >
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
               {error}

@@ -23,8 +23,17 @@ function LoginContent() {
     }
   }, [searchParams, router])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+    e.stopPropagation()
+    
+    // Double-check: prevent any form submission
+    if (e.currentTarget.method?.toLowerCase() === "post") {
+      console.error("Form submission blocked: POST method not allowed on /login")
+      setError("Invalid form submission. Please refresh the page and try again.")
+      return
+    }
+    
     setError("")
     setLoading(true)
 
@@ -82,7 +91,12 @@ function LoginContent() {
         <h1 className="text-3xl font-bold mb-6 text-center text-gray-900">
           Login
         </h1>
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form 
+          onSubmit={handleSubmit} 
+          action="#" 
+          method="get"
+          className="flex flex-col gap-4"
+        >
           {success && (
             <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
               {success}
