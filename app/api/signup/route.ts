@@ -70,6 +70,23 @@ export async function POST(req: Request) {
     )
   } catch (err: any) {
     console.error("Signup error:", err)
+    
+    // Provide more helpful error messages for common issues
+    if (err?.message?.includes("DATABASE_URL") || err?.message?.includes("datasource")) {
+      return NextResponse.json(
+        { 
+          error: "Database configuration error",
+          message: "Please check your DATABASE_URL environment variable in Vercel settings"
+        },
+        {
+          status: 500,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      )
+    }
+    
     return NextResponse.json(
       { error: "Signup failed" },
       {
