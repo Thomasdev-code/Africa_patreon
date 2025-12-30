@@ -53,30 +53,9 @@ function SignupContent() {
         return
       }
 
-      // Auto-login after signup
-      const signInResult = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
-      })
-
-      if (signInResult?.ok) {
-        // Refresh router to get updated session
-        router.refresh()
-        
-        // Small delay to ensure session is set
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        
-        // Redirect based on role
-        if (role === "fan") {
-          router.push("/dashboard")
-        } else if (role === "creator") {
-          router.push("/creator/onboarding")
-        }
-      } else {
-        setError("Account created but login failed. Please try logging in.")
-        setLoading(false)
-      }
+      // Signup successful - redirect to login page
+      // Client-side redirect using router.push (no POST to /login)
+      router.push("/login?signup=success")
     } catch (err) {
       console.error("Signup error:", err)
       setError("An error occurred. Please try again.")
