@@ -2,7 +2,6 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { signIn } from "next-auth/react"
 import Link from "next/link"
 
 function LoginContent() {
@@ -53,26 +52,43 @@ function LoginContent() {
 
       const data = await res.json()
 
+      console.log("Login response:", data) // Debug log
+
       if (data.success && data.token && data.user) {
-        // Store JWT token in localStorage
-        localStorage.setItem("token", data.token)
-        localStorage.setItem("user", JSON.stringify(data.user))
+        // Store JWT token in localStorage and cookie
+        if (typeof window !== "undefined") {
+          localStorage.setItem("token", data.token)
+          localStorage.setItem("user", JSON.stringify(data.user))
+          
+          // Also set cookie for server-side access (middleware)
+          document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`
+        }
 
-        // Redirect based on user role
-        const { role } = data.user
+        // Redirect based on user role and onboarding status
+        const { role, isOnboarded } = data.user
 
+        console.log("Redirecting user:", { role, isOnboarded }) // Debug log
+
+        // Determine redirect URL
+        let redirectUrl = "/dashboard"
         if (role === "admin") {
-          router.push("/admin")
+          redirectUrl = "/admin"
         } else if (role === "creator") {
-          // Check if onboarded (you may need to add this to the login response)
-          router.push("/creator/dashboard")
+          redirectUrl = !isOnboarded ? "/creator/onboarding" : "/creator/dashboard"
         } else if (role === "fan") {
-          router.push("/dashboard")
+          redirectUrl = "/dashboard"
+        }
+
+        // Use window.location for a hard redirect to ensure it works
+        // This bypasses any potential router issues
+        if (typeof window !== "undefined") {
+          window.location.href = redirectUrl
         } else {
-          router.push("/dashboard")
+          router.push(redirectUrl)
         }
       } else {
-        setError("Login failed. Please try again.")
+        console.error("Login failed - invalid response:", data)
+        setError(data.error || "Login failed. Please try again.")
         setLoading(false)
       }
     } catch (err) {
