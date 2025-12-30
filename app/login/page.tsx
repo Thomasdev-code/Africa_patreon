@@ -2,6 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
+import { signIn } from "next-auth/react"
 import Link from "next/link"
 
 function LoginContent() {
@@ -30,65 +31,52 @@ function LoginContent() {
     setLoading(true)
 
     try {
-      // Use the new JWT-based login endpoint
-      const res = await fetch("/api/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          password,
-        }),
-        redirect: "error", // Prevent automatic redirects
+      // Use NextAuth signIn with credentials
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false, // Handle redirect manually
       })
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: "Login failed" }))
-        setError(errorData.error || "Invalid email or password")
+      // Handle the result explicitly
+      if (result?.error) {
+        setError("Invalid email or password")
         setLoading(false)
         return
       }
 
-      const data = await res.json()
+      if (result?.ok) {
+        // Refresh router to get updated session
+        router.refresh()
+        
+        // Small delay to ensure session is set
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        
+        // Get user session to determine redirect
+        const res = await fetch("/api/auth/session")
+        const session = await res.json()
 
-      console.log("Login response:", data) // Debug log
+        if (session?.user) {
+          const { role, isOnboarded } = session.user
 
-      if (data.success && data.token && data.user) {
-        // Store JWT token in localStorage and cookie
-        if (typeof window !== "undefined") {
-          localStorage.setItem("token", data.token)
-          localStorage.setItem("user", JSON.stringify(data.user))
-          
-          // Also set cookie for server-side access (middleware)
-          document.cookie = `token=${data.token}; path=/; max-age=${7 * 24 * 60 * 60}; SameSite=Lax`
-        }
+          // Determine redirect URL
+          let redirectUrl = "/dashboard"
+          if (role === "admin") {
+            redirectUrl = "/admin"
+          } else if (role === "creator") {
+            redirectUrl = !isOnboarded ? "/creator/onboarding" : "/creator/dashboard"
+          } else if (role === "fan") {
+            redirectUrl = "/dashboard"
+          }
 
-        // Redirect based on user role and onboarding status
-        const { role, isOnboarded } = data.user
-
-        console.log("Redirecting user:", { role, isOnboarded }) // Debug log
-
-        // Determine redirect URL
-        let redirectUrl = "/dashboard"
-        if (role === "admin") {
-          redirectUrl = "/admin"
-        } else if (role === "creator") {
-          redirectUrl = !isOnboarded ? "/creator/onboarding" : "/creator/dashboard"
-        } else if (role === "fan") {
-          redirectUrl = "/dashboard"
-        }
-
-        // Use window.location for a hard redirect to ensure it works
-        // This bypasses any potential router issues
-        if (typeof window !== "undefined") {
-          window.location.href = redirectUrl
-        } else {
+          // Use router.push for client-side navigation
           router.push(redirectUrl)
+        } else {
+          // Fallback redirect if session not available
+          router.push("/dashboard")
         }
       } else {
-        console.error("Login failed - invalid response:", data)
-        setError(data.error || "Login failed. Please try again.")
+        setError("Login failed. Please try again.")
         setLoading(false)
       }
     } catch (err) {

@@ -1,20 +1,6 @@
 import { auth } from "@/auth"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { verify } from "jsonwebtoken"
-
-// Helper to verify JWT token from cookie
-function verifyJWTToken(token: string): any {
-  try {
-    const JWT_SECRET = process.env.JWT_SECRET || process.env.NEXTAUTH_SECRET
-    if (!JWT_SECRET) return null
-    
-    const decoded = verify(token, JWT_SECRET)
-    return decoded
-  } catch {
-    return null
-  }
-}
 
 export default auth((req) => {
   const { pathname } = req.nextUrl
@@ -30,7 +16,7 @@ export default auth((req) => {
     return NextResponse.json(
       { 
         error: "Method not allowed",
-        message: "POST requests to /login are not allowed. Please use /api/login endpoint"
+        message: "POST requests to /login are not allowed. Please use NextAuth signIn()"
       },
       { status: 405 }
     )
@@ -65,43 +51,19 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Check for authentication - try NextAuth session first, then JWT token
-  let user: any = null
-  let role: string | null = null
-  let isOnboarded: boolean = false
-  let isBanned: boolean = false
-
-  if (session?.user) {
-    // Use NextAuth session
-    user = session.user
-    role = session.user.role
-    isOnboarded = session.user.isOnboarded || false
-    isBanned = session.user.isBanned || false
-  } else {
-    // Try JWT token from cookie
-    const token = req.cookies.get("token")?.value
-    if (token) {
-      const decoded = verifyJWTToken(token)
-      if (decoded) {
-        user = { id: decoded.userId, email: decoded.email, role: decoded.role }
-        role = decoded.role
-        isOnboarded = decoded.isOnboarded || false
-        isBanned = false // JWT doesn't include isBanned, would need to check DB
-      }
-    }
-  }
-
-  // Protected routes - require authentication
-  if (!user || !role) {
+  // Protected routes - require NextAuth session
+  if (!session?.user) {
     const loginUrl = new URL("/login", req.url)
     loginUrl.searchParams.set("callbackUrl", pathname)
     return NextResponse.redirect(loginUrl)
   }
 
-  // Check if user is banned (only if we have session data)
-  if (isBanned) {
+  // Check if user is banned
+  if (session.user.isBanned) {
     return NextResponse.redirect(new URL("/login?error=banned", req.url))
   }
+
+  const { role, isOnboarded } = session.user
 
   // Fan dashboard - fan only
   if (pathname === "/dashboard") {
