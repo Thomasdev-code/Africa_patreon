@@ -36,13 +36,18 @@ function SignupContent() {
     try {
       const res = await fetch("/api/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Cache-Control": "no-cache",
+        },
         body: JSON.stringify({ 
           email, 
           password, 
           role,
           referralCode: referralCode || undefined,
         }),
+        // Explicitly prevent redirects
+        redirect: "error",
       })
 
       // Check if response is ok before parsing JSON
@@ -57,6 +62,15 @@ function SignupContent() {
           errorMessage = res.statusText || errorMessage
         }
         setError(errorMessage)
+        setLoading(false)
+        return
+      }
+
+      // Verify content type is JSON
+      const contentType = res.headers.get("content-type")
+      if (!contentType || !contentType.includes("application/json")) {
+        console.error("Unexpected response type:", contentType)
+        setError("Invalid response from server. Please try again.")
         setLoading(false)
         return
       }
