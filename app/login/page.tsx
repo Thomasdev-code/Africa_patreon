@@ -27,59 +27,56 @@ function LoginContent() {
     e.preventDefault()
     e.stopPropagation()
     
-    // Double-check: prevent any form submission
-    if (e.currentTarget.method?.toLowerCase() === "post") {
-      console.error("Form submission blocked: POST method not allowed on /login")
-      setError("Invalid form submission. Please refresh the page and try again.")
-      return
-    }
-    
     setError("")
     setLoading(true)
 
     try {
-      const result = await signIn("credentials", {
-        email,
-        password,
-        redirect: false,
+      // Use the new JWT-based login endpoint
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+        }),
+        redirect: "error", // Prevent automatic redirects
       })
 
-      if (result?.error) {
-        setError("Invalid email or password")
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ error: "Login failed" }))
+        setError(errorData.error || "Invalid email or password")
         setLoading(false)
         return
       }
 
-      if (result?.ok) {
-        // Refresh router to get updated session
-        router.refresh()
-        
-        // Small delay to ensure session is set
-        await new Promise((resolve) => setTimeout(resolve, 100))
-        
-        // Get user session to determine redirect
-        const res = await fetch("/api/auth/session")
-        const session = await res.json()
+      const data = await res.json()
 
-        if (session?.user) {
-          const { role, isOnboarded } = session.user
+      if (data.success && data.token && data.user) {
+        // Store JWT token in localStorage
+        localStorage.setItem("token", data.token)
+        localStorage.setItem("user", JSON.stringify(data.user))
 
-          if (role === "admin") {
-            router.push("/admin")
-          } else if (role === "creator") {
-            if (!isOnboarded) {
-              router.push("/creator/onboarding")
-            } else {
-              router.push("/creator/dashboard")
-            }
-          } else if (role === "fan") {
-            router.push("/dashboard")
-          }
+        // Redirect based on user role
+        const { role } = data.user
+
+        if (role === "admin") {
+          router.push("/admin")
+        } else if (role === "creator") {
+          // Check if onboarded (you may need to add this to the login response)
+          router.push("/creator/dashboard")
+        } else if (role === "fan") {
+          router.push("/dashboard")
         } else {
           router.push("/dashboard")
         }
+      } else {
+        setError("Login failed. Please try again.")
+        setLoading(false)
       }
     } catch (err) {
+      console.error("Login error:", err)
       setError("An error occurred. Please try again.")
       setLoading(false)
     }

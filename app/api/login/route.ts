@@ -25,6 +25,7 @@ export async function POST(req: Request) {
         password: true,
         role: true,
         isBanned: true,
+        isOnboarded: true,
       },
     })
 
@@ -64,13 +65,22 @@ export async function POST(req: Request) {
     }
 
     const token = sign(
-      { userId: user.id, email: user.email, role: user.role },
+      { userId: user.id, email: user.email, role: user.role, isOnboarded: user.isOnboarded },
       JWT_SECRET,
       { expiresIn: "7d" }
     )
 
     return NextResponse.json(
-      { success: true, token, user: { id: user.id, email: user.email, role: user.role } },
+      { 
+        success: true, 
+        token, 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          role: user.role,
+          isOnboarded: user.isOnboarded,
+        } 
+      },
       {
         status: 200,
         headers: {
