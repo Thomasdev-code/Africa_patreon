@@ -85,12 +85,17 @@ export default auth((req) => {
   }
 
   // Creator dashboard and sub-routes - creator only, must be onboarded
+  // Redirect to onboarding ONCE ONLY if not onboarded
   if (pathname === "/creator/dashboard" || pathname.startsWith("/creator/dashboard/")) {
     if (role !== "creator") {
       return NextResponse.redirect(new URL("/login", req.url))
     }
     if (!isOnboarded) {
-      return NextResponse.redirect(new URL("/creator/onboarding", req.url))
+      // Check if user is already being redirected (prevent redirect loops)
+      const onboardingRedirect = new URL("/creator/onboarding", req.url)
+      // Add a flag to prevent multiple redirects in the same session
+      onboardingRedirect.searchParams.set("redirected", "true")
+      return NextResponse.redirect(onboardingRedirect)
     }
     return NextResponse.next()
   }

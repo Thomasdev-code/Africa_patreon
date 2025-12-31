@@ -93,6 +93,13 @@ export default function CreatorOnboarding() {
         return
       }
 
+      // Refresh session to update isOnboarded status
+      // This ensures middleware recognizes the user as onboarded
+      await fetch("/api/auth/session", { method: "GET", cache: "no-store" })
+      
+      // Small delay to ensure session is updated
+      await new Promise((resolve) => setTimeout(resolve, 200))
+      
       // Redirect to dashboard
       router.push("/creator/dashboard")
     } catch (err) {

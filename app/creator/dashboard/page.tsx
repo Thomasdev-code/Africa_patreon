@@ -30,6 +30,7 @@ export default function CreatorDashboard() {
   const [profile, setProfile] = useState<CreatorProfile | null>(null)
   const [posts, setPosts] = useState<Post[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [isCreatingPost, setIsCreatingPost] = useState(false)
   const [editingPostId, setEditingPostId] = useState<string | null>(null)
@@ -42,8 +43,38 @@ export default function CreatorDashboard() {
   const [unlocksAnalytics, setUnlocksAnalytics] = useState<UnlocksAnalytics | null>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
 
+  // Check onboarding status ONCE ONLY on mount
   useEffect(() => {
-    fetchProfile()
+    const checkOnboarding = async () => {
+      if (hasCheckedOnboarding) return
+      
+      try {
+        const sessionRes = await fetch("/api/auth/session", { 
+          cache: "no-store",
+        })
+        const session = await sessionRes.json()
+        
+        if (session?.user) {
+          // If creator is not onboarded, redirect ONCE ONLY
+          if (session.user.role === "creator" && !session.user.isOnboarded) {
+            setHasCheckedOnboarding(true)
+            router.replace("/creator/onboarding")
+            return
+          }
+        }
+        
+        setHasCheckedOnboarding(true)
+        fetchProfile()
+      } catch (err) {
+        console.error("Failed to check onboarding status:", err)
+        // Continue with profile fetch even if check fails
+        setHasCheckedOnboarding(true)
+        fetchProfile()
+      }
+    }
+    
+    checkOnboarding()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {

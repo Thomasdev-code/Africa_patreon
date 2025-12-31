@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { motion } from "framer-motion"
+import useSWR from "swr"
 
 interface TrendingCreator {
   id: string
@@ -21,27 +21,27 @@ interface TrendingCreator {
   }
 }
 
+// Fetcher function for SWR
+const fetcher = async (url: string) => {
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error("Failed to fetch trending creators")
+  }
+  const data = await res.json()
+  return data.creators || []
+}
+
 export default function TrendingCreators() {
-  const [creators, setCreators] = useState<TrendingCreator[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchTrending = async () => {
-      try {
-        const res = await fetch("/api/discover/trending?limit=6")
-        const data = await res.json()
-        if (res.ok) {
-          setCreators(data.creators || [])
-        }
-      } catch (error) {
-        console.error("Failed to fetch trending creators", error)
-      } finally {
-        setIsLoading(false)
-      }
+  // Use SWR with caching to avoid multiple repeated calls
+  const { data: creators = [], isLoading, error } = useSWR<TrendingCreator[]>(
+    "/api/discover/trending?limit=6",
+    fetcher,
+    {
+      dedupingInterval: 60000, // Cache for 60 seconds to prevent duplicate requests
+      revalidateOnFocus: false, // Don't refetch on window focus
+      revalidateOnReconnect: true, // Refetch on reconnect
     }
-
-    fetchTrending()
-  }, [])
+  )
 
   if (isLoading) {
     return (
@@ -55,7 +55,12 @@ export default function TrendingCreators() {
     )
   }
 
-  if (creators.length === 0) {
+  if (error) {
+    // Silently fail - don't show error UI for trending creators
+    return null
+  }
+
+  if (!creators || creators.length === 0) {
     return null
   }
 

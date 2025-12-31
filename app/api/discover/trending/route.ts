@@ -53,10 +53,20 @@ export async function GET(req: NextRequest) {
         },
       }))
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       creators: formatted,
       count: formatted.length,
     })
+
+    // Add cache headers to reduce repeated requests
+    response.headers.set(
+      "Cache-Control",
+      "public, s-maxage=60, stale-while-revalidate=300"
+    )
+    response.headers.set("CDN-Cache-Control", "public, s-maxage=60")
+    response.headers.set("Vercel-CDN-Cache-Control", "public, s-maxage=60")
+
+    return response
   } catch (error) {
     console.error("Trending creators fetch error:", error)
     return NextResponse.json(

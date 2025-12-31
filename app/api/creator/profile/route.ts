@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    return NextResponse.json(
+    const response = NextResponse.json(
       {
         success: true,
         profile: {
@@ -109,6 +109,11 @@ export async function POST(req: NextRequest) {
       },
       { status: 200 }
     )
+
+    // Add cache headers to prevent unnecessary revalidation
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate")
+    
+    return response
   } catch (error) {
     console.error("Profile creation/update error:", error)
     return NextResponse.json(
