@@ -1,6 +1,5 @@
 import { prisma, checkDatabaseConnection } from "../lib/prisma"
 import bcrypt from "bcrypt"
-import readline from "readline"
 
 // NOTE:
 // This seed script only creates/updates a single ADMIN user.
@@ -9,22 +8,7 @@ import readline from "readline"
 // - It is safe to re-run thanks to Prisma upsert.
 // - It handles temporary DB connectivity issues by printing a clear, actionable error
 //   instead of crashing with a long stack trace.
-
-function prompt(question: string, defaultValue?: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  })
-
-  const suffix = defaultValue ? ` (${defaultValue})` : ""
-
-  return new Promise((resolve) => {
-    rl.question(`${question}${suffix}: `, (answer) => {
-      rl.close()
-      resolve(answer.trim() || defaultValue || "")
-    })
-  })
-}
+// - Uses environment variables ADMIN_EMAIL and ADMIN_PASSWORD with fallback defaults.
 
 async function main() {
   console.log("🌱 Starting seed (admin user)...")
@@ -40,9 +24,9 @@ async function main() {
     process.exit(1)
   }
 
-  const email = await prompt("Admin email", "admin@africapatreon.com")
-  const name = await prompt("Admin name", "Admin User")
-  const password = await prompt("Admin password (will be hashed)")
+  const email = process.env.ADMIN_EMAIL || "africapatreon34@gmail.com"
+  const password = process.env.ADMIN_PASSWORD || "Admin@1234"
+  const name = "Admin User"
 
   if (!email) {
     console.error("❌ Email is required")
