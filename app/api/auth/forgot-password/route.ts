@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
 import { generateResetToken, hashToken, generateExpirationDate } from "@/lib/auth-utils"
-import { sendPasswordResetEmail } from "@/lib/mail"
+import { sendPasswordResetEmail } from "@/lib/mailer"
 import { z } from "zod"
 
 const emailSchema = z.object({
@@ -57,11 +57,25 @@ export async function POST(req: NextRequest) {
         })
       )
 
-      // Send reset email (don't await to prevent timing attacks)
-      sendPasswordResetEmail(user.email, token).catch((error) => {
-        console.error("Failed to send password reset email:", error)
+      // Send reset email
+      // Note: We catch errors but still return success to prevent email enumeration
+      // However, we log detailed SMTP errors server-side for debugging
+      try {
+        await sendPasswordResetEmail(user.email, token)
+        console.log(`✅ Password reset email sent successfully to: ${user.email}`)
+      } catch (error: any) {
+        // Log detailed SMTP error server-side (includes error code, response, etc.)
+        console.error("❌ Failed to send password reset email (server-side):", {
+          email: user.email,
+          error: error.message,
+          code: error.code,
+          response: error.response,
+          stack: error.stack,
+        })
         // Don't throw - we've already stored the token
-      })
+        // API will return 200 with success message (security best practice)
+        // But the error is logged server-side for debugging
+      }
     }
 
     // Always return success message (security best practice)

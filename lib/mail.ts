@@ -22,9 +22,10 @@ interface MailOptions {
 function createTransporter() {
   // In development, use console logging if no SMTP configured
   if (process.env.NODE_ENV === "development" && !process.env.SMTP_HOST) {
+    console.warn("⚠️  SMTP not configured - emails will be logged to console only")
     return {
       sendMail: async (options: MailOptions) => {
-        console.log("📧 Email (Development Mode):")
+        console.log("📧 Email (Development Mode - NOT SENT):")
         console.log("To:", options.to)
         console.log("Subject:", options.subject)
         console.log("Body:", options.text || options.html)
@@ -33,8 +34,15 @@ function createTransporter() {
     }
   }
 
+  // Validate SMTP credentials
+  if (!process.env.SMTP_USER || !process.env.SMTP_PASSWORD) {
+    const error = new Error("SMTP credentials not configured. Please set SMTP_USER and SMTP_PASSWORD environment variables.")
+    console.error("❌ Email configuration error:", error.message)
+    throw error
+  }
+
   // Production/Development with SMTP
-  return nodemailer.createTransport({
+  const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || "smtp.gmail.com",
     port: parseInt(process.env.SMTP_PORT || "587"),
     secure: process.env.SMTP_SECURE === "true", // true for 465, false for other ports
@@ -45,6 +53,14 @@ function createTransporter() {
     // For Gmail, you may need to enable "Less secure app access"
     // or use an App Password
   })
+
+  // Verify connection on creation (optional, but helpful for debugging)
+  transporter.verify().catch((error) => {
+    console.error("⚠️  SMTP connection verification failed:", error.message)
+    console.error("   This might not prevent emails from being sent, but check your SMTP settings.")
+  })
+
+  return transporter
 }
 
 /**
@@ -55,16 +71,38 @@ function createTransporter() {
 export async function sendEmail(options: MailOptions): Promise<void> {
   try {
     const transporter = createTransporter()
-    await transporter.sendMail({
+    const result = await transporter.sendMail({
       from: process.env.SMTP_FROM || process.env.SMTP_USER || "noreply@africapatreon.com",
       to: options.to,
       subject: options.subject,
       html: options.html,
       text: options.text || options.html.replace(/<[^>]*>/g, ""), // Strip HTML for text version
     })
-  } catch (error) {
-    console.error("Email sending error:", error)
-    throw new Error("Failed to send email. Please try again later.")
+    
+    console.log("✅ Email sent successfully:", {
+      messageId: result.messageId,
+      to: options.to,
+      subject: options.subject,
+    })
+  } catch (error: any) {
+    console.error("❌ Email sending error:", {
+      message: error.message,
+      code: error.code,
+      command: error.command,
+      response: error.response,
+      to: options.to,
+    })
+    
+    // Provide more specific error messages
+    if (error.code === "EAUTH") {
+      throw new Error("SMTP authentication failed. Please check your SMTP_USER and SMTP_PASSWORD.")
+    } else if (error.code === "ECONNECTION") {
+      throw new Error("Could not connect to SMTP server. Please check your SMTP_HOST and SMTP_PORT.")
+    } else if (error.code === "ETIMEDOUT") {
+      throw new Error("SMTP connection timed out. Please check your network connection and SMTP settings.")
+    } else {
+      throw new Error(`Failed to send email: ${error.message || "Unknown error"}`)
+    }
   }
 }
 
