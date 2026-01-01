@@ -32,20 +32,35 @@ const REQUIRED_ENV_VARS = [
  */
 function validateEnvVars(): void {
   const missing: string[] = []
+  const present: string[] = []
 
+  // Check each required variable
   for (const varName of REQUIRED_ENV_VARS) {
     const value = process.env[varName]
     if (!value || value.trim() === "") {
       missing.push(varName)
+    } else {
+      present.push(varName)
     }
   }
+
+  // Log what we found (for debugging)
+  console.log("🔍 Environment variable check:", {
+    present: present.length,
+    missing: missing.length,
+    presentVars: present,
+    missingVars: missing,
+    nodeEnv: process.env.NODE_ENV,
+  })
 
   if (missing.length > 0) {
     const error = new Error(
       `Missing required environment variables: ${missing.join(", ")}. ` +
-        "Please set all SMTP configuration variables in Vercel."
+        `Found ${present.length}/${REQUIRED_ENV_VARS.length} variables. ` +
+        "Please set all SMTP configuration variables in Vercel Settings → Environment Variables → Production."
     )
     console.error("❌ Email configuration error:", error.message)
+    console.error("📋 Required variables:", REQUIRED_ENV_VARS.join(", "))
     throw error
   }
 
@@ -84,8 +99,13 @@ function validateEnvVars(): void {
  * Validates environment variables before creating transporter
  */
 function createTransporter() {
+  // Log initialization (helps debug Vercel deployment issues)
+  console.log("📧 Initializing SMTP transporter...")
+  
   // Validate all required env vars first
   validateEnvVars()
+  
+  console.log("✅ All environment variables validated successfully")
 
   const config = {
     host: process.env.SMTP_HOST!,
