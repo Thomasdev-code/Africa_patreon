@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { NextRequest, NextResponse } from "next/server"
 import { verifyPayment } from "@/lib/payments/unified"
 import type { PaymentProvider } from "@/lib/payments/types"

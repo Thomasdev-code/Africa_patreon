@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { NextRequest, NextResponse } from "next/server"
 import { prisma, executeWithReconnect } from "@/lib/prisma"
 import { generateResetToken, hashToken, generateExpirationDate } from "@/lib/auth-utils"

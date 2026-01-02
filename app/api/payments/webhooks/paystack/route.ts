@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { NextRequest, NextResponse } from "next/server"
 import { paystackSDK } from "@/lib/payments/payment-providers"
 import { processPaymentEvent } from "@/lib/payments/webhook-handler"

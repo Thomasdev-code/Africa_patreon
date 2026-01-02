@@ -1,3 +1,5 @@
+export const runtime = "nodejs"
+
 import { NextRequest, NextResponse } from "next/server"
 import { processWebhook } from "@/lib/payments/payment-router"
 import { processPaymentEvent } from "@/lib/payments/webhook-handler"
