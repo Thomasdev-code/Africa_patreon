@@ -10,6 +10,7 @@ import type {
 } from "./types"
 import { convertToSmallestUnit } from "./router"
 import { resolvePaystackCurrency, type PaystackCurrency } from "./currency"
+import { getAppUrl } from "@/lib/app-url"
 
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY
 const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
@@ -99,7 +100,7 @@ export class PaystackProvider implements PaymentProviderInterface {
           paystackCurrency, // Store resolved currency
           ...metadata,
         },
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/payment/success?reference={reference}`,
+        callback_url: `${getAppUrl()}/payment/success?reference={reference}`,
       })
 
       return {
@@ -155,7 +156,7 @@ export class PaystackProvider implements PaymentProviderInterface {
               convertedAmount: kesAmount,
               ...metadata,
             },
-            callback_url: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/payment/success?reference={reference}`,
+            callback_url: `${getAppUrl()}/payment/success?reference={reference}`,
           })
 
           return {

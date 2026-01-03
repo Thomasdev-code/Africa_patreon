@@ -3,6 +3,7 @@ export const runtime = "nodejs"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { getAppUrl } from "@/lib/app-url"
 
 export async function GET(req: NextRequest) {
   try {
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       code: referralCode.code,
-      referralLink: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?ref=${referralCode.code}`,
+      referralLink: `${getAppUrl()}/signup?ref=${referralCode.code}`,
       isActive: referralCode.isActive,
       stats: {
         totalReferrals,

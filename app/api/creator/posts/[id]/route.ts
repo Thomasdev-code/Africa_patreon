@@ -3,6 +3,7 @@ export const runtime = "nodejs"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { getAppUrl } from "@/lib/app-url"
 import type { UpdatePostInput } from "@/lib/types"
 import { parseMembershipTiers } from "@/lib/utils"
 
@@ -124,7 +125,7 @@ export async function PUT(
 
     // If post is being published and has a tier, send notifications
     if (body.isPublished && !post.isPublished && updatedPost.tierName) {
-      fetch(`${process.env.NEXTAUTH_URL || "http://localhost:3000"}/api/notifications/send`, {
+      fetch(`${getAppUrl()}/api/notifications/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ postId: updatedPost.id }),

@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { generateReferralCode } from "@/lib/referrals"
+import { getAppUrl } from "@/lib/app-url"
 import type { ReferralCode } from "@/lib/types"
 
 export async function GET(req: NextRequest) {
@@ -38,8 +39,7 @@ export async function GET(req: NextRequest) {
       user.referralCode = code
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000"
-    const link = `${baseUrl}/r/${user.referralCode}`
+    const link = `${getAppUrl()}/r/${user.referralCode}`
 
     const referralCode: ReferralCode = {
       code: user.referralCode,

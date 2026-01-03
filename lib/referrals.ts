@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { getAppUrl } from "@/lib/app-url"
 
 /**
  * Generate a unique referral code for a user
@@ -68,7 +69,7 @@ export async function trackReferralClick(
   referralCode: string,
   referrerId: string
 ): Promise<void> {
-  const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/r/${referralCode}`
+  const referralLink = `${getAppUrl()}/r/${referralCode}`
   
   await prisma.referral.create({
     data: {

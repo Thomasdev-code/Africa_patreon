@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { generateReferralCode, getReferralStats } from "@/lib/referrals"
+import { getAppUrl } from "@/lib/app-url"
 import type { ReferralDashboard } from "@/lib/types"
 
 export async function GET(req: NextRequest) {
@@ -39,7 +40,7 @@ export async function GET(req: NextRequest) {
       user.referralCode = code
     }
 
-    const referralLink = `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/r/${user.referralCode}`
+    const referralLink = `${getAppUrl()}/r/${user.referralCode}`
 
     // Get stats
     const stats = await getReferralStats(user.id)

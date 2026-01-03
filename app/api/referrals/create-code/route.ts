@@ -3,6 +3,7 @@ export const runtime = "nodejs"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
+import { getAppUrl } from "@/lib/app-url"
 import { z } from "zod"
 
 const createCodeSchema = z.object({
@@ -74,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       code: referralCode.code,
-      referralLink: `${process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"}/signup?ref=${referralCode.code}`,
+      referralLink: `${getAppUrl()}/signup?ref=${referralCode.code}`,
     })
   } catch (error: any) {
     if (error instanceof z.ZodError) {

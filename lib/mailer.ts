@@ -5,6 +5,7 @@
  */
 
 import nodemailer from "nodemailer"
+import { getAppUrl } from "@/lib/app-url"
 
 interface MailOptions {
   to: string
@@ -211,11 +212,7 @@ export async function sendPasswordResetEmail(
   email: string,
   token: string
 ): Promise<void> {
-  const baseUrl = process.env.NEXTAUTH_URL
-  if (!baseUrl) {
-    throw new Error("NEXTAUTH_URL environment variable is required")
-  }
-
+  const baseUrl = getAppUrl()
   const resetUrl = `${baseUrl}/reset-password?token=${token}`
 
   const html = `

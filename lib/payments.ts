@@ -10,6 +10,7 @@ import {
   type SupportedCurrency,
 } from "./payments/currency"
 import { paystackSDK } from "./payments/payment-providers"
+import { getAppUrl } from "@/lib/app-url"
 
 export type PaymentProvider = "PAYSTACK"
 
@@ -137,7 +138,7 @@ export async function createMpesaPayment(
   _provider: "MPESA_PAYSTACK" | "MPESA_FLW" | "MPESA" | undefined,
   metadata?: Record<string, any>
 ): Promise<{ reference: string; payment_url: string }> {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
+  const baseUrl = getAppUrl()
   const result = await paystackSDK.createMpesaPayment({
     amount,
     currency: "KES",
