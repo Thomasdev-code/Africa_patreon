@@ -1,3 +1,17 @@
+// Suppress DEP0169 warning from Cloudinary dependency
+// Cloudinary 2.8.0 uses deprecated url.parse() internally
+// This is safe to suppress as it's from a trusted dependency
+if (typeof process !== "undefined" && process.emitWarning) {
+  const originalEmitWarning = process.emitWarning
+  process.emitWarning = function (warning: any, type?: string, code?: string, ...args: any[]) {
+    // Suppress DEP0169 (url.parse deprecation) warnings from Cloudinary
+    if (code === "DEP0169" || (typeof warning === "string" && warning.includes("DEP0169"))) {
+      return
+    }
+    return originalEmitWarning.call(process, warning, type, code, ...args)
+  }
+}
+
 import { v2 as cloudinary } from "cloudinary"
 
 export interface UploadResult {
