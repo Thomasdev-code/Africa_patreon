@@ -80,7 +80,7 @@ export async function renewSubscription(
     // Use currency from payment if available, otherwise default to KES
     const currency = subscription.payment?.currency || "KES"
     const result = await paystackSDK.initializePayment({
-      amount: subscription.tierPrice,
+      amount: subscription.tierPrice, // Display amount - conversion happens in service
       currency: currency,
       userId: subscription.fanId,
       creatorId: subscription.creatorId,
@@ -92,6 +92,10 @@ export async function renewSubscription(
     })
 
     // Store pending payment
+    // Amount stored in minor units (from Paystack response or convert)
+    const { convertToPaystackAmount } = await import("./paystack-service")
+    const amountInMinor = convertToPaystackAmount(subscription.tierPrice, currency)
+    
     const payment = await prisma.payment.create({
       data: {
         userId: subscription.fanId,
@@ -101,7 +105,7 @@ export async function renewSubscription(
         tierPrice: subscription.tierPrice,
         provider: "PAYSTACK",
         reference: result.reference,
-        amount: Math.round(subscription.tierPrice * 100),
+        amount: amountInMinor, // Use centralized conversion
         currency: currency,
         status: "pending",
         metadata: {

@@ -1,6 +1,4 @@
-import { writeFile, mkdir } from "fs/promises"
-import { join } from "path"
-import { existsSync } from "fs"
+import { v2 as cloudinary } from "cloudinary"
 
 export interface UploadResult {
   url: string
@@ -9,93 +7,107 @@ export interface UploadResult {
 
 /**
  * Storage abstraction for media uploads
- * Supports local storage (dev) and can be extended for cloud storage (S3, Cloudinary, etc.)
+ * Uses Cloudinary for all uploads (memory-based, no filesystem)
+ * Compatible with Vercel serverless runtime
  */
 export class StorageService {
-  private uploadDir: string
+  private cloudinaryConfigured: boolean
 
   constructor() {
-    // Use public/uploads for local storage
-    this.uploadDir = join(process.cwd(), "public", "uploads")
+    // Configure Cloudinary if credentials are available
+    this.cloudinaryConfigured = !!(
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+    )
+
+    if (this.cloudinaryConfigured) {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
+        secure: true,
+      })
+    }
   }
 
   /**
-   * Upload file to storage
+   * Upload file to storage (Cloudinary only, memory-based)
    */
   async uploadFile(
     file: File | Buffer,
     filename: string,
     folder: string = "media"
   ): Promise<UploadResult> {
-    // For production, you would upload to S3, Cloudinary, etc.
-    // For now, we'll use local storage
-
-    if (process.env.STORAGE_TYPE === "s3") {
-      return this.uploadToS3(file, filename, folder)
-    } else if (process.env.STORAGE_TYPE === "cloudinary") {
-      return this.uploadToCloudinary(file, filename, folder)
-    } else {
-      return this.uploadToLocal(file, filename, folder)
-    }
-  }
-
-  /**
-   * Upload to local storage (development)
-   */
-  private async uploadToLocal(
-    file: File | Buffer,
-    filename: string,
-    folder: string
-  ): Promise<UploadResult> {
-    const folderPath = join(this.uploadDir, folder)
-    
-    // Create directory if it doesn't exist
-    if (!existsSync(folderPath)) {
-      await mkdir(folderPath, { recursive: true })
+    // Always use Cloudinary - no filesystem operations
+    if (!this.cloudinaryConfigured) {
+      throw new Error(
+        "Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET environment variables."
+      )
     }
 
-    const filePath = join(folderPath, filename)
-    const buffer = file instanceof File ? Buffer.from(await file.arrayBuffer()) : file
-
-    await writeFile(filePath, buffer)
-
-    // Return public URL
-    const url = `/uploads/${folder}/${filename}`
-    return { url, path: filePath }
+    return this.uploadToCloudinary(file, filename, folder)
   }
 
   /**
-   * Upload to AWS S3 (production - placeholder)
-   */
-  private async uploadToS3(
-    file: File | Buffer,
-    filename: string,
-    folder: string
-  ): Promise<UploadResult> {
-    // TODO: Implement S3 upload
-    // const s3 = new AWS.S3()
-    // const buffer = file instanceof File ? Buffer.from(await file.arrayBuffer()) : file
-    // const result = await s3.upload({...}).promise()
-    // return { url: result.Location, path: result.Key }
-    
-    throw new Error("S3 upload not implemented yet")
-  }
-
-  /**
-   * Upload to Cloudinary (production - placeholder)
+   * Upload to Cloudinary using memory buffer (no filesystem)
    */
   private async uploadToCloudinary(
     file: File | Buffer,
     filename: string,
     folder: string
   ): Promise<UploadResult> {
-    // TODO: Implement Cloudinary upload
-    // const cloudinary = require('cloudinary').v2
-    // const buffer = file instanceof File ? Buffer.from(await file.arrayBuffer()) : file
-    // const result = await cloudinary.uploader.upload(buffer, { folder })
-    // return { url: result.secure_url, path: result.public_id }
-    
-    throw new Error("Cloudinary upload not implemented yet")
+    try {
+      // Convert File to Buffer if needed (memory-based, no disk writes)
+      const buffer: Buffer =
+        file instanceof File
+          ? Buffer.from(await file.arrayBuffer())
+          : file
+
+      // Upload to Cloudinary using buffer with data URI format
+      // This avoids any filesystem operations
+      const uploadOptions: {
+        folder: string
+        resource_type?: "auto" | "image" | "video" | "raw"
+        public_id?: string
+      } = {
+        folder: `africa-patreon/${folder}`,
+        resource_type: "auto", // Auto-detect image/video/raw
+      }
+
+      // Remove extension from filename for public_id (Cloudinary handles extensions)
+      const publicId = filename.replace(/\.[^/.]+$/, "")
+
+      // Convert buffer to data URI format for Cloudinary
+      // Format: data:[<mediatype>][;base64],<data>
+      const mimeType = file instanceof File ? file.type : "application/octet-stream"
+      const dataUri = `data:${mimeType};base64,${buffer.toString("base64")}`
+
+      // Upload using upload method with data URI (memory-based, no filesystem)
+      const result = await cloudinary.uploader.upload(dataUri, {
+        ...uploadOptions,
+        public_id: publicId,
+      })
+
+      return {
+        url: result.secure_url,
+        path: result.public_id,
+      }
+    } catch (error: any) {
+      // Log Cloudinary-specific errors with details
+      console.error("[CLOUDINARY] Upload failed:", {
+        error: error.message,
+        code: error.http_code,
+        name: error.name,
+        folder,
+        filename,
+        stack: error.stack,
+      })
+
+      throw new Error(
+        `Cloudinary upload failed: ${error.message || "Unknown error"}`
+      )
+    }
   }
 
   /**

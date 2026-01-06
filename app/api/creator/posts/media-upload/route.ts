@@ -67,8 +67,32 @@ export async function POST(req: NextRequest) {
       mediaType: mediaType,
       filename: filename,
     })
-  } catch (error) {
-    console.error("Media upload error:", error)
+  } catch (error: any) {
+    // Log detailed error for debugging
+    console.error("[MEDIA_UPLOAD] Error:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    })
+
+    // Return user-friendly error message
+    // If it's a Cloudinary configuration error, provide specific message
+    if (error.message?.includes("Cloudinary is not configured")) {
+      return NextResponse.json(
+        { error: "Media upload service is not configured. Please contact support." },
+        { status: 503 }
+      )
+    }
+
+    // If it's a Cloudinary upload error, return generic message (already logged server-side)
+    if (error.message?.includes("Cloudinary upload failed")) {
+      return NextResponse.json(
+        { error: "Failed to upload media. Please try again." },
+        { status: 500 }
+      )
+    }
+
+    // Generic error fallback
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
