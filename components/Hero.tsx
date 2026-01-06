@@ -29,9 +29,9 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.2 }}
             className="text-5xl md:text-6xl lg:text-7xl font-bold text-white mb-6 leading-tight"
           >
-            Empower African{" "}
+            Empower Your Creativity.{" "}
             <span className="bg-gradient-to-r from-[#f4c430] to-[#ffd700] bg-clip-text text-transparent">
-              Creators
+              Earn From Your Fans.
             </span>
           </motion.h1>
 
@@ -41,31 +41,50 @@ export default function Hero() {
             transition={{ duration: 0.8, delay: 0.4 }}
             className="text-xl md:text-2xl text-gray-200 mb-10 max-w-3xl mx-auto font-light"
           >
-            The platform where African creators build sustainable income streams
-            and fans discover exclusive content. Support with Stripe, Paystack,
-            Flutterwave, and M-Pesa.
+            Join Africa Patreon today and turn your talent into income. Share your page, grow your audience, and get rewarded for every subscription.
           </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.6 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-8"
           >
             <Link
               href="/signup"
-              className="group relative px-8 py-4 bg-gradient-to-r from-[#f4c430] to-[#ffd700] text-[#1a1a1a] font-semibold rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+              className="group relative px-10 py-5 bg-gradient-to-r from-[#f4c430] to-[#ffd700] text-[#1a1a1a] font-bold text-lg rounded-xl shadow-2xl hover:shadow-[#f4c430]/50 transition-all duration-300 transform hover:scale-105 border-2 border-transparent hover:border-[#ffd700]"
             >
-              <span className="relative z-10">Get Started</span>
+              <span className="relative z-10">Start Earning Today</span>
               <div className="absolute inset-0 bg-gradient-to-r from-[#ffd700] to-[#f4c430] rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </Link>
 
             <Link
               href="/discover"
-              className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-xl border-2 border-white/20 hover:bg-white/20 transition-all duration-300 transform hover:scale-105"
+              className="px-10 py-5 bg-white/10 backdrop-blur-sm text-white font-bold text-lg rounded-xl border-2 border-white/40 hover:bg-white/20 hover:border-white/60 transition-all duration-300 transform hover:scale-105"
             >
               Discover Creators
             </Link>
+          </motion.div>
+
+          {/* Trust Indicators */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.8 }}
+            className="flex flex-wrap justify-center gap-6 text-sm text-gray-300 mb-8"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <span>Secure payouts</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <span>Instant subscription updates</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-green-400">✓</span>
+              <span>Multiple payment options</span>
+            </div>
           </motion.div>
 
           {/* Stats */}
@@ -80,7 +99,7 @@ export default function Hero() {
                 500+
               </div>
               <div className="text-gray-300 text-sm font-light">
-                Active Creators
+                Creators Active
               </div>
             </div>
             <div className="text-center">
@@ -88,7 +107,7 @@ export default function Hero() {
                 10K+
               </div>
               <div className="text-gray-300 text-sm font-light">
-                Supporters
+                Subscriptions Processed
               </div>
             </div>
             <div className="text-center">
@@ -96,7 +115,7 @@ export default function Hero() {
                 50+
               </div>
               <div className="text-gray-300 text-sm font-light">
-                Countries
+                Countries Served
               </div>
             </div>
           </motion.div>

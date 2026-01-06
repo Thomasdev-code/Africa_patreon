@@ -13,37 +13,37 @@ export default function Home() {
       icon: "💳",
       title: "Multiple Payment Options",
       description:
-        "Secure payments via Paystack. Support fans from across Africa with cards, bank transfers, and mobile money. Platform fee included.",
+        "Accept payments from fans across Africa with cards, bank transfers, and mobile money. Secure payouts, instant subscription updates, and platform fee included.",
     },
     {
       icon: "📊",
-      title: "Real-Time Analytics",
+      title: "Real-Time Earnings Dashboard",
       description:
-        "Track your earnings, subscriber growth, and content performance with detailed analytics dashboard.",
+        "Watch your income grow in real-time. Track subscriptions, revenue, referral bonuses, and subscriber growth with detailed analytics.",
     },
     {
       icon: "🔒",
-      title: "Secure & Reliable",
+      title: "Secure & Reliable Payouts",
       description:
-        "Bank-level security with encrypted transactions and fraud protection. Your data and payments are safe.",
+        "Bank-level security with encrypted transactions. Your earnings are safe and payouts are processed securely and on time.",
     },
     {
       icon: "🌍",
-      title: "Global Reach",
+      title: "Global Reach, Local Payments",
       description:
-        "Connect with supporters worldwide. Accept payments in multiple currencies and reach a global audience.",
+        "Connect with supporters worldwide while accepting local payment methods. Reach a global audience and get paid in your preferred currency.",
     },
     {
       icon: "🎨",
-      title: "Customizable Tiers",
+      title: "Customizable Tiers & Pricing",
       description:
-        "Create multiple subscription tiers with different benefits. Set your own prices and perks.",
+        "Create multiple subscription tiers with different benefits. Set your own prices, unlock exclusive content, and maximize your earnings per subscriber.",
     },
     {
       icon: "💬",
-      title: "Direct Communication",
+      title: "Build Your Community",
       description:
-        "Engage with your supporters through direct messages, exclusive posts, and community features.",
+        "Engage with supporters through direct messages, exclusive posts, and community features. Grow your audience and increase retention.",
     },
   ]
 
@@ -75,6 +75,126 @@ export default function Home() {
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
       <Hero />
+
+      {/* Referral Hook Section */}
+      <section className="py-12 bg-gradient-to-r from-[#0d3b2e] to-[#1a1a1a] border-b border-[#f4c430]/20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center"
+          >
+            <div className="inline-flex items-center gap-2 bg-[#f4c430]/10 border border-[#f4c430]/30 rounded-full px-6 py-3 mb-4">
+              <span className="text-2xl">🎁</span>
+              <p className="text-white font-semibold text-lg">
+                Share your page & earn bonuses for every fan you bring
+              </p>
+            </div>
+            <p className="text-gray-300 text-sm max-w-2xl mx-auto mb-4">
+              Get rewarded when your referrals subscribe. Build your audience and increase your earnings with our referral program.
+            </p>
+            <Link
+              href="/signup"
+              className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#f4c430] to-[#ffd700] text-[#1a1a1a] font-bold rounded-lg hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              Start Earning Today →
+            </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Dashboard/Earnings Visual Section */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
+              See Your Earnings Grow in Real-Time
+            </h2>
+            <p className="text-xl text-gray-600 font-light max-w-2xl mx-auto">
+              Track subscriptions, revenue, and growth all in one place
+            </p>
+          </motion.div>
+
+          {/* Dashboard Mockup */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl p-8 md:p-12 shadow-2xl border border-gray-200"
+          >
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white rounded-xl p-6 shadow-lg">
+                <div className="text-3xl font-bold text-[#0d3b2e] mb-2">KES 45,000</div>
+                <div className="text-sm text-gray-600">Monthly Revenue</div>
+                <div className="text-xs text-green-600 mt-2">↑ 23% from last month</div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-lg">
+                <div className="text-3xl font-bold text-[#0d3b2e] mb-2">127</div>
+                <div className="text-sm text-gray-600">Active Subscribers</div>
+                <div className="text-xs text-green-600 mt-2">↑ 12 new this week</div>
+              </div>
+              <div className="bg-white rounded-xl p-6 shadow-lg">
+                <div className="text-3xl font-bold text-[#0d3b2e] mb-2">KES 8,500</div>
+                <div className="text-sm text-gray-600">Referral Bonuses</div>
+                <div className="text-xs text-green-600 mt-2">From 15 referrals</div>
+              </div>
+            </div>
+            <div className="bg-white rounded-xl p-6 shadow-lg">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-gray-900">Recent Activity</h3>
+                <span className="text-xs text-gray-500">Last 7 days</span>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0d3b2e] to-[#f4c430] flex items-center justify-center text-white font-semibold text-sm">
+                      JD
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">John Doe subscribed</div>
+                      <div className="text-xs text-gray-500">Premium Tier</div>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-green-600">+KES 2,000</div>
+                </div>
+                <div className="flex items-center justify-between py-2 border-b border-gray-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0d3b2e] to-[#f4c430] flex items-center justify-center text-white font-semibold text-sm">
+                      SM
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Sarah M. subscribed</div>
+                      <div className="text-xs text-gray-500">Basic Tier</div>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-green-600">+KES 500</div>
+                </div>
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0d3b2e] to-[#f4c430] flex items-center justify-center text-white font-semibold text-sm">
+                      AK
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">Alex K. subscribed</div>
+                      <div className="text-xs text-gray-500">Premium Tier</div>
+                    </div>
+                  </div>
+                  <div className="text-sm font-semibold text-green-600">+KES 2,000</div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
 
       {/* Trending Creators Section */}
       <TrendingCreators />
@@ -119,10 +239,10 @@ export default function Home() {
             className="text-center mb-12"
           >
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Why Creators Choose Africa Patreon
+              Everything You Need to Earn From Your Fans
             </h2>
             <p className="text-xl text-gray-600 font-light max-w-2xl mx-auto">
-              Everything you need to build and grow your creator business
+              Powerful tools and features designed to help you grow your audience and maximize your earnings
             </p>
           </motion.div>
 
@@ -198,25 +318,38 @@ export default function Home() {
             transition={{ duration: 0.6 }}
           >
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-              Ready to Start Your Creator Journey?
+              Ready to Turn Your Talent Into Income?
             </h2>
             <p className="text-xl text-gray-300 font-light mb-8">
-              Join hundreds of African creators building sustainable income
-              streams today.
+              Join hundreds of African creators earning from their passion. Start your journey today and get your first subscribers within days.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-6">
               <Link
                 href="/signup"
-                className="px-8 py-4 bg-gradient-to-r from-[#f4c430] to-[#ffd700] text-[#1a1a1a] font-semibold rounded-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105"
+                className="px-10 py-5 bg-gradient-to-r from-[#f4c430] to-[#ffd700] text-[#1a1a1a] font-bold text-lg rounded-xl shadow-2xl hover:shadow-[#f4c430]/50 transition-all duration-300 transform hover:scale-105 border-2 border-transparent hover:border-[#ffd700]"
               >
-                Get Started Free
+                Start Earning Today
               </Link>
               <Link
                 href="/discover"
-                className="px-8 py-4 bg-white/10 backdrop-blur-sm text-white font-semibold rounded-xl border-2 border-white/20 hover:bg-white/20 transition-all duration-300"
+                className="px-10 py-5 bg-white/10 backdrop-blur-sm text-white font-bold text-lg rounded-xl border-2 border-white/40 hover:bg-white/20 hover:border-white/60 transition-all duration-300 transform hover:scale-105"
               >
-                Explore Creators
+                Discover Creators
               </Link>
+            </div>
+            <div className="flex flex-wrap justify-center gap-6 text-sm text-gray-400">
+              <div className="flex items-center gap-2">
+                <span className="text-green-400">✓</span>
+                <span>No setup fees</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-green-400">✓</span>
+                <span>Instant payouts</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-green-400">✓</span>
+                <span>24/7 support</span>
+              </div>
             </div>
           </motion.div>
         </div>

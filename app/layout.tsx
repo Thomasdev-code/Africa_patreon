@@ -10,8 +10,18 @@ import ContentProtection from "@/components/ContentProtection"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Africa Patreon - Support African Creators",
-  description: "The platform for African creators to monetize their content",
+  title: "Africa Patreon – Empower African creators to earn from their fans",
+  description: "Join Africa Patreon and turn your talent into income. Share your page, grow your audience, and get rewarded for every subscription. Secure payouts, instant updates, multiple payment options.",
+  openGraph: {
+    title: "Africa Patreon – Empower African creators to earn from their fans",
+    description: "Join Africa Patreon and turn your talent into income. Share your page, grow your audience, and get rewarded for every subscription.",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Africa Patreon – Empower African creators to earn from their fans",
+    description: "Join Africa Patreon and turn your talent into income. Share your page, grow your audience, and get rewarded for every subscription.",
+  },
 }
 
 export default function RootLayout({
