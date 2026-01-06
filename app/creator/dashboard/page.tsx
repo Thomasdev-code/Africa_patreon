@@ -42,6 +42,8 @@ export default function CreatorDashboard() {
   const [revenueAnalytics, setRevenueAnalytics] = useState<RevenueAnalytics | null>(null)
   const [unlocksAnalytics, setUnlocksAnalytics] = useState<UnlocksAnalytics | null>(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
+  const [publicUrl, setPublicUrl] = useState<string>("")
+  const [copySuccess, setCopySuccess] = useState(false)
 
   // Check onboarding status ONCE ONLY on mount
   useEffect(() => {
@@ -80,8 +82,54 @@ export default function CreatorDashboard() {
   useEffect(() => {
     if (profile) {
       fetchPosts()
+      fetchBaseUrl()
     }
   }, [profile])
+
+  const fetchBaseUrl = async () => {
+    try {
+      const res = await fetch("/api/app-url")
+      const data = await res.json()
+      if (res.ok && data.url && profile?.username) {
+        const url = `${data.url}/creator/${profile.username}`
+        setPublicUrl(url)
+      }
+    } catch (err) {
+      console.error("Failed to fetch base URL:", err)
+      // Fallback to window.location.origin if API fails
+      if (profile?.username) {
+        const url = `${window.location.origin}/creator/${profile.username}`
+        setPublicUrl(url)
+      }
+    }
+  }
+
+  const handleCopyLink = async () => {
+    if (!publicUrl) return
+    
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      setCopySuccess(true)
+      setTimeout(() => setCopySuccess(false), 2000)
+    } catch (err) {
+      console.error("Failed to copy link:", err)
+      // Fallback for older browsers
+      const textArea = document.createElement("textarea")
+      textArea.value = publicUrl
+      textArea.style.position = "fixed"
+      textArea.style.opacity = "0"
+      document.body.appendChild(textArea)
+      textArea.select()
+      try {
+        document.execCommand("copy")
+        setCopySuccess(true)
+        setTimeout(() => setCopySuccess(false), 2000)
+      } catch (fallbackErr) {
+        console.error("Fallback copy failed:", fallbackErr)
+      }
+      document.body.removeChild(textArea)
+    }
+  }
 
   useEffect(() => {
     if (activeTab === "analytics" && profile) {
@@ -457,6 +505,33 @@ export default function CreatorDashboard() {
                 </div>
               </div>
             </div>
+
+            {/* Share your page */}
+            {publicUrl && (
+              <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4">
+                  Share your page
+                </h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={publicUrl}
+                    readOnly
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <button
+                    onClick={handleCopyLink}
+                    className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                      copySuccess
+                        ? "bg-green-600 text-white hover:bg-green-700"
+                        : "bg-blue-600 text-white hover:bg-blue-700"
+                    }`}
+                  >
+                    {copySuccess ? "Copied!" : "Copy link"}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Stats */}
             <SubscribersStats creatorId={profile.userId} />
