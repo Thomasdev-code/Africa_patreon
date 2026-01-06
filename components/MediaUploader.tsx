@@ -24,6 +24,88 @@ export default function MediaUploader({
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const uploadVideoDirectly = async (file: File) => {
+    // Generate unique filename
+    const fileTimestamp = Date.now()
+    const random = Math.random().toString(36).substring(2, 15)
+    const ext = file.name.split(".").pop()
+    const filename = `${fileTimestamp}-${random}.${ext}`
+
+    // Get signed upload parameters from server
+    const signatureRes = await fetch("/api/creator/posts/media-upload/signature", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        filename,
+        resourceType: "video",
+        folder: "media",
+      }),
+    })
+
+    if (!signatureRes.ok) {
+      const error = await signatureRes.json()
+      throw new Error(error.error || "Failed to get upload signature")
+    }
+
+    const { signature, timestamp, cloudName, apiKey, resourceType, publicId } =
+      await signatureRes.json()
+
+    // Upload directly to Cloudinary
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("api_key", apiKey)
+    formData.append("timestamp", timestamp.toString())
+    formData.append("signature", signature)
+    formData.append("public_id", publicId)
+    formData.append("resource_type", resourceType)
+
+    // Upload directly to Cloudinary (videos go to /video/upload endpoint)
+    const uploadRes = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      {
+        method: "POST",
+        body: formData,
+      }
+    )
+
+    if (!uploadRes.ok) {
+      const error = await uploadRes.json()
+      throw new Error(error.error?.message || "Video upload failed")
+    }
+
+    const uploadData = await uploadRes.json()
+
+    // Create preview URL
+    const previewUrl = uploadData.secure_url
+    setPreview(previewUrl)
+    onUploadComplete(previewUrl, "video")
+    setIsUploading(false)
+  }
+
+  const uploadThroughServer = async (file: File) => {
+    const formData = new FormData()
+    formData.append("file", file)
+
+    const res = await fetch("/api/creator/posts/media-upload", {
+      method: "POST",
+      body: formData,
+    })
+
+    const data = await res.json()
+
+    if (!res.ok) {
+      setUploadError(data.error || "Upload failed")
+      setIsUploading(false)
+      return
+    }
+
+    // Create preview URL
+    const previewUrl = data.mediaUrl
+    setPreview(previewUrl)
+    onUploadComplete(data.mediaUrl, data.mediaType)
+    setIsUploading(false)
+  }
+
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -64,27 +146,15 @@ export default function MediaUploader({
     setUploadError("")
 
     try {
-      const formData = new FormData()
-      formData.append("file", file)
+      // Videos: Upload directly to Cloudinary (bypass serverless limits)
+      // Images/Audio: Upload through server (smaller files, no issue)
+      const isVideo = file.type.startsWith("video/")
 
-      const res = await fetch("/api/creator/posts/media-upload", {
-        method: "POST",
-        body: formData,
-      })
-
-      const data = await res.json()
-
-      if (!res.ok) {
-        setUploadError(data.error || "Upload failed")
-        setIsUploading(false)
-        return
+      if (isVideo) {
+        await uploadVideoDirectly(file)
+      } else {
+        await uploadThroughServer(file)
       }
-
-      // Create preview URL
-      const previewUrl = data.mediaUrl
-      setPreview(previewUrl)
-      onUploadComplete(data.mediaUrl, data.mediaType)
-      setIsUploading(false)
     } catch (err) {
       console.error("Upload error:", err)
       setUploadError("An error occurred during upload")

@@ -181,6 +181,14 @@ export class StorageService {
     const ext = originalName.split(".").pop()
     return `${timestamp}-${random}.${ext}`
   }
+
+  /**
+   * Check if file type should use direct client upload (videos only)
+   * Videos go directly to Cloudinary to avoid serverless limits
+   */
+  shouldUseDirectUpload(mimeType: string): boolean {
+    return mimeType.startsWith("video/")
+  }
 }
 
 export const storage = new StorageService()
