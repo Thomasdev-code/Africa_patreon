@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { filename, resourceType = "auto", folder = "media" } = body
+    const { filename, resourceType, folder = "media" } = body
 
     if (!filename) {
       return NextResponse.json(
@@ -33,6 +33,10 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Ensure resource_type is explicitly "video" for video uploads
+    // This must match exactly what the client sends
+    const uploadResourceType = resourceType || "video"
 
     // Validate Cloudinary configuration
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME
@@ -53,18 +57,20 @@ export async function POST(req: NextRequest) {
     // Generate timestamp (required for signed uploads)
     const timestamp = Math.round(new Date().getTime() / 1000)
 
-    // Build parameters for signature (only include parameters that will be sent)
-    // Note: public_id includes the folder path, so we don't need separate folder param
+    // Build parameters for signature
+    // CRITICAL: Only include parameters that will be sent in the upload request
+    // DO NOT include: file, api_key, cloud_name, signature (these are not signed)
+    // MUST include: timestamp, resource_type, public_id, chunk_size (if video)
     const params: Record<string, string> = {
       timestamp: timestamp.toString(),
-      resource_type: resourceType,
+      resource_type: uploadResourceType, // Use explicit resource_type
       public_id: fullPublicId,
     }
 
     // For videos, enable resumable uploads with chunk_size (~6MB)
-    // This must be included in signature calculation
-    if (resourceType === "video") {
-      params.chunk_size = "6291456" // 6MB in bytes
+    // chunk_size MUST be included in signature if it will be sent in upload
+    if (uploadResourceType === "video") {
+      params.chunk_size = "6291456" // 6MB in bytes - must match client upload
     }
 
     // Create signature string (must be sorted by key)
@@ -82,9 +88,9 @@ export async function POST(req: NextRequest) {
       timestamp,
       cloudName,
       apiKey,
-      resourceType: params.resource_type,
+      resourceType: params.resource_type, // Return exact value used in signature
       publicId: fullPublicId,
-      chunkSize: params.chunk_size || undefined, // Include chunk_size for videos
+      chunkSize: params.chunk_size || undefined, // Return exact value used in signature
     })
   } catch (error: any) {
     console.error("[SIGNATURE] Error:", {

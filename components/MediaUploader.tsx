@@ -50,21 +50,24 @@ export default function MediaUploader({
     const { signature, timestamp, cloudName, apiKey, resourceType, publicId, chunkSize } =
       await signatureRes.json()
 
-    // Ensure resource_type is explicitly "video" for videos
-    const uploadResourceType = resourceType || "video"
+    // CRITICAL: Use EXACT values returned from signature endpoint
+    // These must match exactly what was used to generate the signature
+    const uploadResourceType = resourceType // Use exact value from signature response
+    const uploadChunkSize = chunkSize // Use exact value from signature response
 
     // Upload directly to Cloudinary with resumable uploads enabled
+    // CRITICAL: Send parameters in the same order/format as signature generation
     const formData = new FormData()
-    formData.append("file", file)
-    formData.append("api_key", apiKey)
-    formData.append("timestamp", timestamp.toString())
-    formData.append("signature", signature)
-    formData.append("public_id", publicId)
-    formData.append("resource_type", uploadResourceType)
+    formData.append("file", file) // Not included in signature
+    formData.append("api_key", apiKey) // Not included in signature
+    formData.append("timestamp", timestamp.toString()) // MUST match signature
+    formData.append("signature", signature) // Not included in signature
+    formData.append("public_id", publicId) // MUST match signature
+    formData.append("resource_type", uploadResourceType) // MUST match signature exactly
     
-    // Enable resumable uploads for videos (chunk_size ~6MB)
-    if (chunkSize) {
-      formData.append("chunk_size", chunkSize)
+    // chunk_size MUST be included if it was in the signature
+    if (uploadChunkSize) {
+      formData.append("chunk_size", uploadChunkSize) // MUST match signature exactly
     }
 
     // Upload directly to Cloudinary (videos go to /video/upload endpoint)
