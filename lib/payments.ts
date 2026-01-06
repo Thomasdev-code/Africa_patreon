@@ -48,7 +48,7 @@ export function isMobileMoney(provider: string): boolean {
 }
 
 export function getProviderForCountry(_countryCode: string): PaymentProvider {
-  return "PAYSTACK"
+      return "PAYSTACK"
 }
 
 export function getBestProviderForCountry(countryCode: string): PaymentProvider {
@@ -60,7 +60,7 @@ export function getBestProviderForCountry(countryCode: string): PaymentProvider 
 }
 
 export function getPaymentProvider(): PaymentProvider {
-  return "PAYSTACK"
+      return "PAYSTACK"
 }
 
 export function getCurrencyForCountry(country: string): SupportedCurrency {
@@ -103,22 +103,22 @@ export async function createPaystackPayment(
     userId: metadata?.userId,
   })
   
-  const result = await paystackSDK.createPayment(
-    amount,
+    const result = await paystackSDK.createPayment(
+      amount,
     safeCurrency, // Use resolved currency
-    metadata?.userId || "",
-    metadata?.creatorId || "",
-    metadata?.tierName || "",
+      metadata?.userId || "",
+      metadata?.creatorId || "",
+      metadata?.tierName || "",
     { ...metadata, email }
-  )
+    )
 
-  if (!result.redirectUrl) {
-    throw new Error("Paystack did not return a payment URL")
-  }
+    if (!result.redirectUrl) {
+      throw new Error("Paystack did not return a payment URL")
+    }
 
-  return {
-    reference: result.reference,
-    payment_url: result.redirectUrl,
+    return {
+      reference: result.reference,
+      payment_url: result.redirectUrl,
   }
 }
 
@@ -139,25 +139,25 @@ export async function createMpesaPayment(
   metadata?: Record<string, any>
 ): Promise<{ reference: string; payment_url: string }> {
   const baseUrl = getAppUrl()
-  const result = await paystackSDK.createMpesaPayment({
-    amount,
-    currency: "KES",
-    phoneNumber: phone,
-    userId: metadata?.userId || "",
-    creatorId: metadata?.creatorId || "",
-    tierName: metadata?.tierName || "",
-    metadata: {
-      ...metadata,
-      phone,
-    },
-  })
+      const result = await paystackSDK.createMpesaPayment({
+        amount,
+        currency: "KES",
+        phoneNumber: phone,
+        userId: metadata?.userId || "",
+        creatorId: metadata?.creatorId || "",
+        tierName: metadata?.tierName || "",
+        metadata: {
+          ...metadata,
+          phone,
+        },
+      })
 
-  const payment_url = `${baseUrl}/payment/mpesa/status?reference=${result.reference}&provider=paystack`
+      const payment_url = `${baseUrl}/payment/mpesa/status?reference=${result.reference}&provider=paystack`
 
-  return {
-    reference: result.reference,
-    payment_url,
-  }
+      return {
+        reference: result.reference,
+        payment_url,
+      }
 }
 
 export function validateProvider(_provider: string): boolean {

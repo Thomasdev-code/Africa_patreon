@@ -61,6 +61,12 @@ export async function POST(req: NextRequest) {
       public_id: fullPublicId,
     }
 
+    // For videos, enable resumable uploads with chunk_size (~6MB)
+    // This must be included in signature calculation
+    if (resourceType === "video") {
+      params.chunk_size = "6291456" // 6MB in bytes
+    }
+
     // Create signature string (must be sorted by key)
     const signatureString = Object.keys(params)
       .sort()
@@ -78,6 +84,7 @@ export async function POST(req: NextRequest) {
       apiKey,
       resourceType: params.resource_type,
       publicId: fullPublicId,
+      chunkSize: params.chunk_size || undefined, // Include chunk_size for videos
     })
   } catch (error: any) {
     console.error("[SIGNATURE] Error:", {

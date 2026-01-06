@@ -47,21 +47,29 @@ export default function MediaUploader({
       throw new Error(error.error || "Failed to get upload signature")
     }
 
-    const { signature, timestamp, cloudName, apiKey, resourceType, publicId } =
+    const { signature, timestamp, cloudName, apiKey, resourceType, publicId, chunkSize } =
       await signatureRes.json()
 
-    // Upload directly to Cloudinary
+    // Ensure resource_type is explicitly "video" for videos
+    const uploadResourceType = resourceType || "video"
+
+    // Upload directly to Cloudinary with resumable uploads enabled
     const formData = new FormData()
     formData.append("file", file)
     formData.append("api_key", apiKey)
     formData.append("timestamp", timestamp.toString())
     formData.append("signature", signature)
     formData.append("public_id", publicId)
-    formData.append("resource_type", resourceType)
+    formData.append("resource_type", uploadResourceType)
+    
+    // Enable resumable uploads for videos (chunk_size ~6MB)
+    if (chunkSize) {
+      formData.append("chunk_size", chunkSize)
+    }
 
     // Upload directly to Cloudinary (videos go to /video/upload endpoint)
     const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      `https://api.cloudinary.com/v1_1/${cloudName}/${uploadResourceType}/upload`,
       {
         method: "POST",
         body: formData,
@@ -69,8 +77,24 @@ export default function MediaUploader({
     )
 
     if (!uploadRes.ok) {
-      const error = await uploadRes.json()
-      throw new Error(error.error?.message || "Video upload failed")
+      let errorMessage = "Video upload failed"
+      try {
+        const errorData = await uploadRes.json()
+        // Surface real Cloudinary errors
+        if (errorData.error?.message) {
+          errorMessage = errorData.error.message
+        } else if (errorData.error) {
+          errorMessage = typeof errorData.error === "string" 
+            ? errorData.error 
+            : JSON.stringify(errorData.error)
+        } else if (errorData.message) {
+          errorMessage = errorData.message
+        }
+      } catch (parseError) {
+        // If JSON parsing fails, use status text
+        errorMessage = `Upload failed: ${uploadRes.status} ${uploadRes.statusText}`
+      }
+      throw new Error(errorMessage)
     }
 
     const uploadData = await uploadRes.json()
@@ -136,8 +160,17 @@ export default function MediaUploader({
       return
     }
 
-    // Validate file size (50MB)
-    if (file.size > 50 * 1024 * 1024) {
+    // Validate file size
+    const isVideo = file.type.startsWith("video/")
+    const maxVideoSize = 150 * 1024 * 1024 // 150MB for videos
+    const maxOtherSize = 50 * 1024 * 1024 // 50MB for images/audio
+
+    if (isVideo && file.size > maxVideoSize) {
+      setUploadError("Video file size exceeds 150MB limit")
+      return
+    }
+
+    if (!isVideo && file.size > maxOtherSize) {
       setUploadError("File size exceeds 50MB limit")
       return
     }
@@ -157,7 +190,11 @@ export default function MediaUploader({
       }
     } catch (err) {
       console.error("Upload error:", err)
-      setUploadError("An error occurred during upload")
+      // Surface the actual error message from Cloudinary or signature endpoint
+      const errorMessage = err instanceof Error 
+        ? err.message 
+        : "An error occurred during upload"
+      setUploadError(errorMessage)
       setIsUploading(false)
     }
   }
@@ -185,7 +222,7 @@ export default function MediaUploader({
           className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <p className="mt-1 text-sm text-gray-500">
-          Upload an image, video, or audio file (max 50MB)
+          Upload an image, video, or audio file (videos: max 150MB, others: max 50MB)
         </p>
       </div>
 
