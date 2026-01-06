@@ -47,7 +47,7 @@ export default function MediaUploader({
       throw new Error(error.error || "Failed to get upload signature")
     }
 
-    const { signature, timestamp, cloudName, apiKey, resourceType, publicId, chunkSize } =
+    const { signature, timestamp, cloudName, apiKey, folder, resourceType, chunkSize } =
       await signatureRes.json()
 
     // CRITICAL: Use EXACT values returned from signature endpoint
@@ -57,12 +57,13 @@ export default function MediaUploader({
 
     // Upload directly to Cloudinary with resumable uploads enabled
     // CRITICAL: Send parameters in the same order/format as signature generation
+    // DO NOT send public_id - let Cloudinary auto-generate it to avoid signature mismatch
     const formData = new FormData()
     formData.append("file", file) // Not included in signature
     formData.append("api_key", apiKey) // Not included in signature
     formData.append("timestamp", timestamp.toString()) // MUST match signature
     formData.append("signature", signature) // Not included in signature
-    formData.append("public_id", publicId) // MUST match signature
+    formData.append("folder", folder) // MUST match signature exactly
     formData.append("resource_type", uploadResourceType) // MUST match signature exactly
     
     // chunk_size MUST be included if it was in the signature

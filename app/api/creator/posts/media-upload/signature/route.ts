@@ -50,21 +50,21 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Generate unique public_id (remove extension)
-    const publicId = filename.replace(/\.[^/.]+$/, "")
-    const fullPublicId = `africa-patreon/${folder}/${publicId}`
-
     // Generate timestamp (required for signed uploads)
     const timestamp = Math.round(new Date().getTime() / 1000)
 
+    // Build folder path for organization
+    const folderPath = `africa-patreon/${folder}`
+
     // Build parameters for signature
     // CRITICAL: Only include parameters that will be sent in the upload request
-    // DO NOT include: file, api_key, cloud_name, signature (these are not signed)
-    // MUST include: timestamp, resource_type, public_id, chunk_size (if video)
+    // DO NOT include: file, api_key, cloud_name, signature, public_id (these are not signed)
+    // public_id must NOT be sent - let Cloudinary auto-generate it to avoid signature mismatch
+    // MUST include: timestamp, folder, resource_type, chunk_size (if video)
     const params: Record<string, string> = {
       timestamp: timestamp.toString(),
+      folder: folderPath,
       resource_type: uploadResourceType, // Use explicit resource_type
-      public_id: fullPublicId,
     }
 
     // For videos, enable resumable uploads with chunk_size (~6MB)
@@ -88,8 +88,8 @@ export async function POST(req: NextRequest) {
       timestamp,
       cloudName,
       apiKey,
+      folder: folderPath, // Return folder for client to use
       resourceType: params.resource_type, // Return exact value used in signature
-      publicId: fullPublicId,
       chunkSize: params.chunk_size || undefined, // Return exact value used in signature
     })
   } catch (error: any) {
