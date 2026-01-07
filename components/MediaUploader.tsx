@@ -56,17 +56,21 @@ export default function MediaUploader({
     const uploadChunkSize = chunkSize // Use exact value from signature response
 
     // Upload directly to Cloudinary with resumable uploads enabled
-    // CRITICAL: Send parameters in the same order/format as signature generation
-    // DO NOT send public_id - let Cloudinary auto-generate it to avoid signature mismatch
+    // Cloudinary signature validation rules:
+    // - Only send parameters that were included in signature generation
+    // - Parameter values must match exactly (same strings, same format)
+    // - DO NOT send: public_id (let Cloudinary auto-generate it)
+    // - DO send: timestamp, folder, resource_type, chunk_size (if video)
+    // - DO send: file, api_key, signature (required but not signed)
     const formData = new FormData()
-    formData.append("file", file) // Not included in signature
-    formData.append("api_key", apiKey) // Not included in signature
-    formData.append("timestamp", timestamp.toString()) // MUST match signature
-    formData.append("signature", signature) // Not included in signature
+    formData.append("file", file) // Required but NOT included in signature
+    formData.append("api_key", apiKey) // Required but NOT included in signature
+    formData.append("timestamp", timestamp.toString()) // MUST match signature exactly
+    formData.append("signature", signature) // Required but NOT included in signature
     formData.append("folder", folder) // MUST match signature exactly
     formData.append("resource_type", uploadResourceType) // MUST match signature exactly
     
-    // chunk_size MUST be included if it was in the signature
+    // chunk_size MUST be included if it was in the signature (for videos)
     if (uploadChunkSize) {
       formData.append("chunk_size", uploadChunkSize) // MUST match signature exactly
     }

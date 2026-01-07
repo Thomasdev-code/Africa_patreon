@@ -73,11 +73,18 @@ export async function POST(req: NextRequest) {
       params.chunk_size = "6291456" // 6MB in bytes - must match client upload
     }
 
-    // Create signature string (must be sorted by key)
-    const signatureString = Object.keys(params)
-      .sort()
+    // Cloudinary signature rules:
+    // 1. Sort parameters alphabetically by key
+    // 2. Concatenate as key=value pairs joined by &
+    // 3. Append API_SECRET (NOT API_KEY) to the string
+    // 4. Hash with SHA1
+    // Example: "chunk_size=6291456&folder=africa-patreon/media&resource_type=video&timestamp=1234567890" + API_SECRET
+    const sortedKeys = Object.keys(params).sort()
+    const signatureString = sortedKeys
       .map((key) => `${key}=${params[key]}`)
       .join("&")
+    
+    // CRITICAL: Use API_SECRET (not API_KEY) for signature generation
     const signature = crypto
       .createHash("sha1")
       .update(signatureString + apiSecret)
