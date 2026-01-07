@@ -76,6 +76,14 @@ export default function MediaUploader({
     }
 
     // Upload directly to Cloudinary (videos go to /video/upload endpoint)
+    console.log("[VIDEO_UPLOAD] Starting Cloudinary upload:", {
+      cloudName,
+      resourceType: uploadResourceType,
+      hasChunkSize: !!uploadChunkSize,
+      fileSize: file.size,
+      fileName: file.name,
+    })
+
     const uploadRes = await fetch(
       `https://api.cloudinary.com/v1_1/${cloudName}/${uploadResourceType}/upload`,
       {
@@ -88,6 +96,11 @@ export default function MediaUploader({
       let errorMessage = "Video upload failed"
       try {
         const errorData = await uploadRes.json()
+        console.error("[VIDEO_UPLOAD] Cloudinary error:", {
+          status: uploadRes.status,
+          statusText: uploadRes.statusText,
+          error: errorData,
+        })
         // Surface real Cloudinary errors
         if (errorData.error?.message) {
           errorMessage = errorData.error.message
@@ -100,10 +113,18 @@ export default function MediaUploader({
         }
       } catch (parseError) {
         // If JSON parsing fails, use status text
+        console.error("[VIDEO_UPLOAD] Failed to parse error response:", parseError)
         errorMessage = `Upload failed: ${uploadRes.status} ${uploadRes.statusText}`
       }
       throw new Error(errorMessage)
     }
+
+    const uploadData = await uploadRes.json()
+    console.log("[VIDEO_UPLOAD] Upload successful:", {
+      publicId: uploadData.public_id,
+      url: uploadData.secure_url,
+      bytes: uploadData.bytes,
+    })
 
     const uploadData = await uploadRes.json()
 
