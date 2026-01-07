@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     const params: Record<string, string> = {
       timestamp: timestamp.toString(),
       folder: folderPath,
-      resource_type: uploadResourceType,
+      
     }
 
     // For videos, enable resumable uploads with chunk_size (~6MB)
