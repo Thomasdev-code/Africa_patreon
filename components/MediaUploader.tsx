@@ -126,8 +126,6 @@ export default function MediaUploader({
       bytes: uploadData.bytes,
     })
 
-    const uploadData = await uploadRes.json()
-
     // Create preview URL
     const previewUrl = uploadData.secure_url
     setPreview(previewUrl)
