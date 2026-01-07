@@ -39,13 +39,11 @@ export default function MediaUploader({
 
     try {
       // Request signature - server is single source of truth
-      // NO filename or folder sent - server defines everything
+      // NO body needed - server defines everything
       const signatureRes = await fetch("/api/creator/posts/media-upload/signature", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          resourceType: "video", // Only resource type needed
-        }),
+        body: JSON.stringify({}), // Empty body - server determines all params
       })
 
       if (!signatureRes.ok) {
@@ -54,40 +52,37 @@ export default function MediaUploader({
       }
 
       // STRICT TYPING: Only use parameters returned by signature endpoint
+      // NOTE: resourceType is NOT in response - determined by upload URL
       interface SignatureResponse {
         signature: string
         timestamp: number
         cloudName: string
         apiKey: string
         folder: string
-        resourceType: string
-        chunkSize?: string
+        chunkSize: string // Always present for video uploads
       }
 
       const signedParams: SignatureResponse = await signatureRes.json()
 
       // GUARD: Ensure all required params are present
       if (!signedParams.signature || !signedParams.timestamp || !signedParams.cloudName || 
-          !signedParams.apiKey || !signedParams.folder || !signedParams.resourceType) {
+          !signedParams.apiKey || !signedParams.folder || !signedParams.chunkSize) {
         throw new Error("Invalid signature response: missing required parameters")
       }
 
       // Build upload FormData - ONLY use signed params, no client-invented values
+      // CRITICAL: resource_type is NOT included - determined by upload URL
       const formData = new FormData()
       formData.append("file", file) // Required but NOT signed
       formData.append("api_key", signedParams.apiKey) // Required but NOT signed
       formData.append("timestamp", signedParams.timestamp.toString()) // MUST match signature
       formData.append("signature", signedParams.signature) // Required but NOT signed
       formData.append("folder", signedParams.folder) // MUST match signature exactly
-      formData.append("resource_type", signedParams.resourceType) // MUST match signature exactly
-      
-      // chunk_size MUST be included if present in signature (videos only)
-      if (signedParams.chunkSize) {
-        formData.append("chunk_size", signedParams.chunkSize) // MUST match signature exactly
-      }
+      formData.append("chunk_size", signedParams.chunkSize) // MUST match signature exactly
 
       // Upload to Cloudinary
-      const uploadUrl = `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/${signedParams.resourceType}/upload`
+      // resource_type is determined by URL: /video/upload = video
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/video/upload`
       const uploadRes = await fetch(uploadUrl, {
         method: "POST",
         body: formData,

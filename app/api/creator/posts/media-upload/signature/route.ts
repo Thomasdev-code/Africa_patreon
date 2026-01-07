@@ -11,10 +11,16 @@ import { isCloudinaryConfigured } from "@/lib/env-validation"
  * SINGLE SOURCE OF TRUTH: Server defines all signed parameters
  * Client must send ONLY the parameters returned by this endpoint
  * 
+ * Cloudinary Rule: resource_type is determined ONLY by the upload URL
+ * - /video/upload = video
+ * - /image/upload = image
+ * - /raw/upload = raw
+ * 
  * Signature Contract:
- * - Signed params: timestamp, folder, resource_type, chunk_size (videos only)
+ * - Signed params: timestamp, folder, chunk_size (videos only)
+ * - resource_type is NOT signed (determined by URL)
  * - Unsigned params (sent but not signed): file, api_key, signature
- * - Never signed: public_id (let Cloudinary auto-generate)
+ * - Never signed: public_id, resource_type (let Cloudinary determine from URL)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -30,14 +36,6 @@ export async function POST(req: NextRequest) {
         { status: 403 }
       )
     }
-
-    const body = await req.json()
-    const { resourceType } = body
-
-    // Server is single source of truth - no filename or folder from client
-    // Normalize resource_type: accept "video" or default to "video" for video uploads
-    // Future: can extend to support "image" or "raw" if needed
-    const uploadResourceType = resourceType === "video" ? "video" : "video"
 
     // Validate Cloudinary configuration
     if (!isCloudinaryConfigured()) {
@@ -59,7 +57,8 @@ export async function POST(req: NextRequest) {
     // Always use "africa-patreon/media" - no client-defined folders
     const folderPath = "africa-patreon/media"
 
-    // Build parameters for signature - EXACTLY what will be sent in upload
+    // Build parameters for signature
+    // CRITICAL: resource_type is NOT included - it's determined by upload URL
     // Cloudinary signature rules:
     // 1. Sort parameters alphabetically by key
     // 2. Concatenate as key=value pairs joined by &
@@ -68,14 +67,11 @@ export async function POST(req: NextRequest) {
     const params: Record<string, string> = {
       timestamp: timestamp.toString(),
       folder: folderPath,
-      
     }
 
     // For videos, enable resumable uploads with chunk_size (~6MB)
     // chunk_size MUST be included in signature if it will be sent in upload
-    if (uploadResourceType === "video") {
-      params.chunk_size = "6291456" // 6MB in bytes
-    }
+    params.chunk_size = "6291456" // 6MB in bytes - always include for video uploads
 
     // Generate signature string (alphabetically sorted)
     const sortedKeys = Object.keys(params).sort()
@@ -90,15 +86,14 @@ export async function POST(req: NextRequest) {
       .digest("hex")
 
     // Return ONLY the parameters the client needs
-    // Client must send these exact values (no modifications)
+    // NOTE: resourceType is NOT returned - client uses /video/upload URL instead
     return NextResponse.json({
       signature,
       timestamp,
       cloudName,
       apiKey,
       folder: folderPath, // Exact value used in signature
-      resourceType: uploadResourceType, // Exact value used in signature
-      chunkSize: params.chunk_size || undefined, // Exact value used in signature (videos only)
+      chunkSize: params.chunk_size, // Exact value used in signature (videos only)
     })
   } catch (error: any) {
     // Defensive logging - never leak secrets
