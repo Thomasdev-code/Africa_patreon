@@ -85,12 +85,13 @@ export class StorageService {
 
       // Upload to Cloudinary using buffer with data URI format
       // This avoids any filesystem operations
+      // Consistent folder structure: always use "africa-patreon/media"
       const uploadOptions: {
         folder: string
         resource_type?: "auto" | "image" | "video" | "raw"
         public_id?: string
       } = {
-        folder: `africa-patreon/${folder}`,
+        folder: "africa-patreon/media", // Normalized folder - consistent with signature endpoint
         resource_type: "auto", // Auto-detect image/video/raw
       }
 
@@ -165,10 +166,13 @@ export class StorageService {
   }
 
   /**
-   * Validate file size (max 50MB)
+   * Validate file size
+   * Videos: 150MB max, Others: 50MB max
+   * Matches client-side validation for consistency
    */
-  validateFileSize(size: number): boolean {
-    const maxSize = 50 * 1024 * 1024 // 50MB
+  validateFileSize(size: number, mimeType?: string): boolean {
+    const isVideo = mimeType?.startsWith("video/")
+    const maxSize = isVideo ? 150 * 1024 * 1024 : 50 * 1024 * 1024 // 150MB for videos, 50MB for others
     return size <= maxSize
   }
 

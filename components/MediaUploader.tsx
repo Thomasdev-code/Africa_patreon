@@ -24,113 +24,120 @@ export default function MediaUploader({
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const uploadVideoDirectly = async (file: File) => {
-    // Generate unique filename
-    const fileTimestamp = Date.now()
-    const random = Math.random().toString(36).substring(2, 15)
-    const ext = file.name.split(".").pop()
-    const filename = `${fileTimestamp}-${random}.${ext}`
+  /**
+   * Upload video directly to Cloudinary using signed parameters
+   * 
+   * STRICT CONTRACT: Client trusts ONLY the signature response
+   * - No client-invented Cloudinary parameters
+   * - No filename or folder sent to signature endpoint
+   * - Uses exact values from signature response
+   * - Includes retry logic for large uploads
+   */
+  const uploadVideoDirectly = async (file: File, retryCount = 0): Promise<void> => {
+    const MAX_RETRIES = 3
+    const RETRY_DELAY = 1000 * (retryCount + 1) // Exponential backoff
 
-    // Get signed upload parameters from server
-    const signatureRes = await fetch("/api/creator/posts/media-upload/signature", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        filename,
-        resourceType: "video",
-        folder: "media",
-      }),
-    })
+    try {
+      // Request signature - server is single source of truth
+      // NO filename or folder sent - server defines everything
+      const signatureRes = await fetch("/api/creator/posts/media-upload/signature", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resourceType: "video", // Only resource type needed
+        }),
+      })
 
-    if (!signatureRes.ok) {
-      const error = await signatureRes.json()
-      throw new Error(error.error || "Failed to get upload signature")
-    }
+      if (!signatureRes.ok) {
+        const error = await signatureRes.json()
+        throw new Error(error.error || "Failed to get upload signature")
+      }
 
-    const { signature, timestamp, cloudName, apiKey, folder, resourceType, chunkSize } =
-      await signatureRes.json()
+      // STRICT TYPING: Only use parameters returned by signature endpoint
+      interface SignatureResponse {
+        signature: string
+        timestamp: number
+        cloudName: string
+        apiKey: string
+        folder: string
+        resourceType: string
+        chunkSize?: string
+      }
 
-    // CRITICAL: Use EXACT values returned from signature endpoint
-    // These must match exactly what was used to generate the signature
-    const uploadResourceType = resourceType // Use exact value from signature response
-    const uploadChunkSize = chunkSize // Use exact value from signature response
+      const signedParams: SignatureResponse = await signatureRes.json()
 
-    // Upload directly to Cloudinary with resumable uploads enabled
-    // Cloudinary signature validation rules:
-    // - Only send parameters that were included in signature generation
-    // - Parameter values must match exactly (same strings, same format)
-    // - DO NOT send: public_id (let Cloudinary auto-generate it)
-    // - DO send: timestamp, folder, resource_type, chunk_size (if video)
-    // - DO send: file, api_key, signature (required but not signed)
-    const formData = new FormData()
-    formData.append("file", file) // Required but NOT included in signature
-    formData.append("api_key", apiKey) // Required but NOT included in signature
-    formData.append("timestamp", timestamp.toString()) // MUST match signature exactly
-    formData.append("signature", signature) // Required but NOT included in signature
-    formData.append("folder", folder) // MUST match signature exactly
-    formData.append("resource_type", uploadResourceType) // MUST match signature exactly
-    
-    // chunk_size MUST be included if it was in the signature (for videos)
-    if (uploadChunkSize) {
-      formData.append("chunk_size", uploadChunkSize) // MUST match signature exactly
-    }
+      // GUARD: Ensure all required params are present
+      if (!signedParams.signature || !signedParams.timestamp || !signedParams.cloudName || 
+          !signedParams.apiKey || !signedParams.folder || !signedParams.resourceType) {
+        throw new Error("Invalid signature response: missing required parameters")
+      }
 
-    // Upload directly to Cloudinary (videos go to /video/upload endpoint)
-    console.log("[VIDEO_UPLOAD] Starting Cloudinary upload:", {
-      cloudName,
-      resourceType: uploadResourceType,
-      hasChunkSize: !!uploadChunkSize,
-      fileSize: file.size,
-      fileName: file.name,
-    })
+      // Build upload FormData - ONLY use signed params, no client-invented values
+      const formData = new FormData()
+      formData.append("file", file) // Required but NOT signed
+      formData.append("api_key", signedParams.apiKey) // Required but NOT signed
+      formData.append("timestamp", signedParams.timestamp.toString()) // MUST match signature
+      formData.append("signature", signedParams.signature) // Required but NOT signed
+      formData.append("folder", signedParams.folder) // MUST match signature exactly
+      formData.append("resource_type", signedParams.resourceType) // MUST match signature exactly
+      
+      // chunk_size MUST be included if present in signature (videos only)
+      if (signedParams.chunkSize) {
+        formData.append("chunk_size", signedParams.chunkSize) // MUST match signature exactly
+      }
 
-    const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/${uploadResourceType}/upload`,
-      {
+      // Upload to Cloudinary
+      const uploadUrl = `https://api.cloudinary.com/v1_1/${signedParams.cloudName}/${signedParams.resourceType}/upload`
+      const uploadRes = await fetch(uploadUrl, {
         method: "POST",
         body: formData,
-      }
-    )
+      })
 
-    if (!uploadRes.ok) {
-      let errorMessage = "Video upload failed"
-      try {
-        const errorData = await uploadRes.json()
-        console.error("[VIDEO_UPLOAD] Cloudinary error:", {
-          status: uploadRes.status,
-          statusText: uploadRes.statusText,
-          error: errorData,
-        })
-        // Surface real Cloudinary errors
-        if (errorData.error?.message) {
-          errorMessage = errorData.error.message
-        } else if (errorData.error) {
-          errorMessage = typeof errorData.error === "string" 
-            ? errorData.error 
-            : JSON.stringify(errorData.error)
-        } else if (errorData.message) {
-          errorMessage = errorData.message
+      if (!uploadRes.ok) {
+        let errorMessage = "Video upload failed"
+        try {
+          const errorData = await uploadRes.json()
+          // Surface real Cloudinary error messages
+          if (errorData.error?.message) {
+            errorMessage = errorData.error.message
+          } else if (errorData.error) {
+            errorMessage = typeof errorData.error === "string" 
+              ? errorData.error 
+              : JSON.stringify(errorData.error)
+          } else if (errorData.message) {
+            errorMessage = errorData.message
+          }
+        } catch (parseError) {
+          errorMessage = `Upload failed: ${uploadRes.status} ${uploadRes.statusText}`
         }
-      } catch (parseError) {
-        // If JSON parsing fails, use status text
-        console.error("[VIDEO_UPLOAD] Failed to parse error response:", parseError)
-        errorMessage = `Upload failed: ${uploadRes.status} ${uploadRes.statusText}`
+
+        // Retry logic for network errors or 5xx errors
+        if (retryCount < MAX_RETRIES && (uploadRes.status >= 500 || uploadRes.status === 408)) {
+          console.log(`[VIDEO_UPLOAD] Retry ${retryCount + 1}/${MAX_RETRIES} after ${RETRY_DELAY}ms`)
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+          return uploadVideoDirectly(file, retryCount + 1)
+        }
+
+        throw new Error(errorMessage)
       }
-      throw new Error(errorMessage)
+
+      const uploadData = await uploadRes.json()
+
+      // Success - use secure_url from Cloudinary response
+      const previewUrl = uploadData.secure_url
+      setPreview(previewUrl)
+      onUploadComplete(previewUrl, "video")
+      setIsUploading(false)
+    } catch (err) {
+      // If retries exhausted or non-retryable error, throw
+      if (retryCount >= MAX_RETRIES || !(err instanceof Error && err.message.includes("408"))) {
+        throw err
+      }
+      // Retry on timeout errors
+      console.log(`[VIDEO_UPLOAD] Retry ${retryCount + 1}/${MAX_RETRIES} after ${RETRY_DELAY}ms`)
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY))
+      return uploadVideoDirectly(file, retryCount + 1)
     }
-
-    const uploadData = await uploadRes.json()
-    console.log("[VIDEO_UPLOAD] Upload successful:", {
-      publicId: uploadData.public_id,
-      url: uploadData.secure_url,
-      bytes: uploadData.bytes,
-    })
-
-    // Create preview URL
-    const previewUrl = uploadData.secure_url
-    setPreview(previewUrl)
-    onUploadComplete(previewUrl, "video")
-    setIsUploading(false)
   }
 
   const uploadThroughServer = async (file: File) => {

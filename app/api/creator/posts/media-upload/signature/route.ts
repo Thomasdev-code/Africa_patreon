@@ -3,11 +3,18 @@ export const runtime = "nodejs"
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/auth"
 import crypto from "crypto"
+import { isCloudinaryConfigured } from "@/lib/env-validation"
 
 /**
- * Generate Cloudinary signed upload parameters for direct client-side uploads
- * This allows videos to be uploaded directly from client to Cloudinary,
- * bypassing serverless function limits
+ * Cloudinary signed upload signature generation
+ * 
+ * SINGLE SOURCE OF TRUTH: Server defines all signed parameters
+ * Client must send ONLY the parameters returned by this endpoint
+ * 
+ * Signature Contract:
+ * - Signed params: timestamp, folder, resource_type, chunk_size (videos only)
+ * - Unsigned params (sent but not signed): file, api_key, signature
+ * - Never signed: public_id (let Cloudinary auto-generate)
  */
 export async function POST(req: NextRequest) {
   try {
@@ -25,60 +32,52 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { filename, resourceType, folder = "media" } = body
+    const { resourceType } = body
 
-    if (!filename) {
-      return NextResponse.json(
-        { error: "Filename is required" },
-        { status: 400 }
-      )
-    }
-
-    // Ensure resource_type is explicitly "video" for video uploads
-    // This must match exactly what the client sends
-    const uploadResourceType = resourceType || "video"
+    // Server is single source of truth - no filename or folder from client
+    // Normalize resource_type: accept "video" or default to "video" for video uploads
+    // Future: can extend to support "image" or "raw" if needed
+    const uploadResourceType = resourceType === "video" ? "video" : "video"
 
     // Validate Cloudinary configuration
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME
-    const apiKey = process.env.CLOUDINARY_API_KEY
-    const apiSecret = process.env.CLOUDINARY_API_SECRET
-
-    if (!cloudName || !apiKey || !apiSecret) {
+    if (!isCloudinaryConfigured()) {
+      console.error("[SIGNATURE] Cloudinary not configured")
       return NextResponse.json(
-        { error: "Cloudinary is not configured" },
+        { error: "Media upload service is not configured" },
         { status: 503 }
       )
     }
 
+    const cloudName = process.env.CLOUDINARY_CLOUD_NAME!
+    const apiKey = process.env.CLOUDINARY_API_KEY!
+    const apiSecret = process.env.CLOUDINARY_API_SECRET!
+
     // Generate timestamp (required for signed uploads)
     const timestamp = Math.round(new Date().getTime() / 1000)
 
-    // Build folder path for organization
-    const folderPath = `africa-patreon/${folder}`
+    // Normalized folder path - single source of truth on server
+    // Always use "africa-patreon/media" - no client-defined folders
+    const folderPath = "africa-patreon/media"
 
-    // Build parameters for signature
-    // CRITICAL: Only include parameters that will be sent in the upload request
-    // DO NOT include: file, api_key, cloud_name, signature, public_id (these are not signed)
-    // public_id must NOT be sent - let Cloudinary auto-generate it to avoid signature mismatch
-    // MUST include: timestamp, folder, resource_type, chunk_size (if video)
-    const params: Record<string, string> = {
-      timestamp: timestamp.toString(),
-      folder: folderPath,
-      resource_type: uploadResourceType, // Use explicit resource_type
-    }
-
-    // For videos, enable resumable uploads with chunk_size (~6MB)
-    // chunk_size MUST be included in signature if it will be sent in upload
-    if (uploadResourceType === "video") {
-      params.chunk_size = "6291456" // 6MB in bytes - must match client upload
-    }
-
+    // Build parameters for signature - EXACTLY what will be sent in upload
     // Cloudinary signature rules:
     // 1. Sort parameters alphabetically by key
     // 2. Concatenate as key=value pairs joined by &
     // 3. Append API_SECRET (NOT API_KEY) to the string
     // 4. Hash with SHA1
-    // Example: "chunk_size=6291456&folder=africa-patreon/media&resource_type=video&timestamp=1234567890" + API_SECRET
+    const params: Record<string, string> = {
+      timestamp: timestamp.toString(),
+      folder: folderPath,
+      resource_type: uploadResourceType,
+    }
+
+    // For videos, enable resumable uploads with chunk_size (~6MB)
+    // chunk_size MUST be included in signature if it will be sent in upload
+    if (uploadResourceType === "video") {
+      params.chunk_size = "6291456" // 6MB in bytes
+    }
+
+    // Generate signature string (alphabetically sorted)
     const sortedKeys = Object.keys(params).sort()
     const signatureString = sortedKeys
       .map((key) => `${key}=${params[key]}`)
@@ -90,19 +89,23 @@ export async function POST(req: NextRequest) {
       .update(signatureString + apiSecret)
       .digest("hex")
 
+    // Return ONLY the parameters the client needs
+    // Client must send these exact values (no modifications)
     return NextResponse.json({
       signature,
       timestamp,
       cloudName,
       apiKey,
-      folder: folderPath, // Return folder for client to use
-      resourceType: params.resource_type, // Return exact value used in signature
-      chunkSize: params.chunk_size || undefined, // Return exact value used in signature
+      folder: folderPath, // Exact value used in signature
+      resourceType: uploadResourceType, // Exact value used in signature
+      chunkSize: params.chunk_size || undefined, // Exact value used in signature (videos only)
     })
   } catch (error: any) {
+    // Defensive logging - never leak secrets
     console.error("[SIGNATURE] Error:", {
       message: error.message,
       name: error.name,
+      // Do not log stack or any env vars
     })
 
     return NextResponse.json(

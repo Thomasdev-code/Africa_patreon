@@ -40,24 +40,27 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate file size
-    if (!storage.validateFileSize(file.size)) {
-      return NextResponse.json(
-        { error: "File size exceeds 50MB limit" },
-        { status: 400 }
-      )
-    }
-
-    // Generate filename and upload
-    const filename = storage.generateFilename(file.name)
+    // Validate file size (consistent with client-side validation)
     const mediaType = storage.getMediaType(file.type)
-
+    
     if (!mediaType) {
       return NextResponse.json(
         { error: "Could not determine media type" },
         { status: 400 }
       )
     }
+
+    const isVideo = mediaType === "video"
+    if (!storage.validateFileSize(file.size, file.type)) {
+      const maxSize = isVideo ? "150MB" : "50MB"
+      return NextResponse.json(
+        { error: `File size exceeds ${maxSize} limit` },
+        { status: 400 }
+      )
+    }
+
+    // Generate filename and upload
+    const filename = storage.generateFilename(file.name)
 
     const result = await storage.uploadFile(file, filename, "media")
 
